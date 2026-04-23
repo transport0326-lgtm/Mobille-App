@@ -1,45 +1,32 @@
-/**
- * Sample React Native App
- * https://github.com/facebook/react-native
- *
- * @format
- */
+import React, { useEffect } from 'react';
+import { Provider } from 'react-redux';
+import { PaperProvider } from 'react-native-paper';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+import AppNavigator from './src/navigation/AppNavigator';
+import { AppTheme } from './src/theme/theme';
+import store from './src/redux/store';
+// import { getFCMToken, registerForegroundListener } from './src/utils/fcm';
+import { getFCMToken } from './src/utils/fcm';
 
-import { NewAppScreen } from '@react-native/new-app-screen';
-import { StatusBar, StyleSheet, useColorScheme, View } from 'react-native';
-import {
-  SafeAreaProvider,
-  useSafeAreaInsets,
-} from 'react-native-safe-area-context';
+const App: React.FC = () => {
+  useEffect(() => {
+    // Get token on mount — log it so you can copy it for testing
+    getFCMToken();
 
-function App() {
-  const isDarkMode = useColorScheme() === 'dark';
-
-  return (
-    <SafeAreaProvider>
-      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
-      <AppContent />
-    </SafeAreaProvider>
-  );
-}
-
-function AppContent() {
-  const safeAreaInsets = useSafeAreaInsets();
+    // Listen for messages while the app is in the foreground
+    // const unsubscribe = registerForegroundListener();
+    // return unsubscribe;
+  }, []);
 
   return (
-    <View style={styles.container}>
-      <NewAppScreen
-        templateFileName="App.tsx"
-        safeAreaInsets={safeAreaInsets}
-      />
-    </View>
+    <Provider store={store}>
+      <SafeAreaProvider>
+        <PaperProvider theme={AppTheme}>
+          <AppNavigator />
+        </PaperProvider>
+      </SafeAreaProvider>
+    </Provider>
   );
-}
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-});
+};
 
 export default App;

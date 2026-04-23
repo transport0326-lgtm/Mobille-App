@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "456565600311",
+    "project_id": "transpport-72d1b",
+    "storage_bucket": "transpport-72d1b.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:456565600311:android:5381f954fb0dabfb7a4fb2",
+        "android_client_info": {
+          "package_name": "com.transpport"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAAWxhG7OQOffeu8A_xUKsHivtTAyFKY2M"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
