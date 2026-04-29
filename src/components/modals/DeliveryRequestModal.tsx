@@ -26,8 +26,9 @@ type DeliveryRequestModalProps = {
   visible: boolean;
   request: DeliveryRequest;
   onAccept: () => void;
-  onReject: () => void;
+  onReject: (reason: string) => void; // ← reason pass hoga ab
   accepting?: boolean;
+  rejecting?: boolean;               // ← naya prop
   countdownSeconds?: number;
 };
 
@@ -37,6 +38,7 @@ const DeliveryRequestModal: React.FC<DeliveryRequestModalProps> = ({
   onAccept,
   onReject,
   accepting = false,
+  rejecting = false,
   countdownSeconds = 15,
 }) => {
   const [timeLeft, setTimeLeft] = useState(countdownSeconds);
@@ -56,7 +58,7 @@ const DeliveryRequestModal: React.FC<DeliveryRequestModalProps> = ({
         if (prev <= 1) {
           clearInterval(timerRef.current!);
           timerRef.current = null;
-          onReject(); // auto-reject on timeout
+          onReject('Timeout'); // auto-reject on timeout
           return 0;
         }
         return prev - 1;
@@ -71,8 +73,14 @@ const DeliveryRequestModal: React.FC<DeliveryRequestModalProps> = ({
   const formatTime = (s: number) =>
     `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
 
+  // Reason select hone par: modal band karo, reason ke saath onReject call karo
+  const handleReasonSelect = (reason: string) => {
+    setShowRejectModal(false);
+    onReject(reason);
+  };
+
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onReject}>
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={() => onReject('Dismissed')}>
       <View style={styles.overlay}>
         <View style={styles.sheet}>
 
@@ -137,10 +145,22 @@ const DeliveryRequestModal: React.FC<DeliveryRequestModalProps> = ({
 
           {/* Action Buttons */}
           <View style={styles.actions}>
-            <TouchableOpacity style={styles.rejectBtn} onPress={() => setShowRejectModal(true)} activeOpacity={0.8}>
-              <Text style={styles.rejectText}>Reject</Text>
+            <TouchableOpacity
+              style={styles.rejectBtn}
+              onPress={() => setShowRejectModal(true)}
+              disabled={rejecting}   // ← reject hote waqt disable
+              activeOpacity={0.8}
+            >
+              {rejecting
+                ? <ActivityIndicator size="small" color={Colors.primary} />
+                : <Text style={styles.rejectText}>Reject</Text>}
             </TouchableOpacity>
-            <TouchableOpacity style={styles.acceptBtn} onPress={onAccept} disabled={accepting} activeOpacity={0.8}>
+            <TouchableOpacity
+              style={styles.acceptBtn}
+              onPress={onAccept}
+              disabled={accepting || rejecting}  // ← dono me disable
+              activeOpacity={0.8}
+            >
               {accepting
                 ? <ActivityIndicator size="small" color="#fff" />
                 : <Text style={styles.acceptText}>Accept</Text>}
@@ -152,10 +172,7 @@ const DeliveryRequestModal: React.FC<DeliveryRequestModalProps> = ({
 
       <RejectReasonModal
         visible={showRejectModal}
-        onSelectReason={() => {
-          setShowRejectModal(false);
-          onReject();
-        }}
+        onSelectReason={handleReasonSelect}  // ← reason string milegi yahan
         onGoBack={() => setShowRejectModal(false)}
       />
     </Modal>
@@ -184,7 +201,6 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     marginBottom: 16,
   },
-
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -207,8 +223,6 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: Colors.primary,
   },
-
-  // Stats
   statsRow: {
     flexDirection: 'row',
     backgroundColor: Colors.background,
@@ -241,8 +255,6 @@ const styles = StyleSheet.create({
     height: 32,
     backgroundColor: Colors.borderGray,
   },
-
-  // Location
   locationSection: {
     backgroundColor: Colors.background,
     borderRadius: 12,
@@ -277,8 +289,6 @@ const styles = StyleSheet.create({
     marginLeft: 4,
     marginVertical: 4,
   },
-
-  // Customer
   customerRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -312,8 +322,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: Colors.textGray,
   },
-
-  // Buttons
   actions: {
     flexDirection: 'row',
     gap: 12,

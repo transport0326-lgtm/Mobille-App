@@ -11,7 +11,11 @@ function* goOnlineSaga({ payload }: GoOnlinePayload): Generator<any, void, any> 
       API_ENDPOINTS.GO_ONLINE,
       {
         method: 'PATCH',
-        body: JSON.stringify({ lat: payload.lat, lng: payload.lng }),
+        body: JSON.stringify({
+          lat: payload.lat,
+          lng: payload.lng,
+          ...(payload.fcmToken ? { fcmToken: payload.fcmToken } : {}),
+        }),
       },
       RIDER_BASE_URL,
     );

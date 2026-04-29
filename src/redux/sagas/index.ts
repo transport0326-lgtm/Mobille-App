@@ -19,6 +19,16 @@ import rootRiderHomeSaga from './rider/riderHomeSaga';
 import rootRiderActiveSaga from './rider/riderActiveSaga';
 import rootAddRatingSaga from './rating/ratingSaga';
 import rootFetchNotificationsSaga from './notifications/riderNotificationsSaga';
+import rootUpdateBookingStatusSaga from './rider/riderArrivedSaga';
+import rootVerifyBookingOtpSaga from './rider/verifyBookingOtpSaga';
+import rootTrackBookingSaga from './booking/trackBookingSaga';
+import rootFetchRiderTripsSaga from './rider/riderTripsSaga';
+import rootDeleteAccountSaga from './deleteAccountSaga';
+import rootMarkNotificationsReadSaga from './notifications/markNotificationsReadSaga';
+import rootRejectBookingSaga from './rider/rejectBookingSaga';
+import rootCancelBookingSaga from './booking/cancelBookingSaga';
+import rootChatSaga from './chat/chatSaga';
+import rootEarningsSaga from './rider/earningsSaga';
 
 // ─── Action name segments ─────────────────────────────────────────────────────
 
@@ -47,6 +57,17 @@ export enum SagaActions {
   RIDER_ACTIVE   =  'RIDER_ACTIVE',
   RATING   =  'RATING',
   NOTIFICATIONS   =  'NOTIFICATIONS',
+  UPDATE_BOOKING_STATUS   = 'UPDATE_BOOKING_STATUS',
+  VERIFY_BOOKING_OTP   =   'VERIFY_BOOKING_OTP',
+  TRACK_BOOKING = 'TRACK_BOOKING',
+  FETCH_RIDER_TRIPS = 'FETCH_RIDER_TRIPS',
+  MARK_NOTIFICATION_READ         = 'MARK_NOTIFICATION_READ',
+  MARK_ALL_NOTIFICATIONS_READ    = 'MARK_ALL_NOTIFICATIONS_READ',
+  REJECT_BOOKING   =   'REJECT_BOOKING',
+  CANCEL_BOOKING   =   'CANCEL_BOOKING',
+  FETCH_MESSAGES   =   'FETCH_MESSAGES',
+  SEND_MESSAGE     =   'SEND_MESSAGE',
+  RIDER_EARNINGS   =   'RIDER_EARNINGS',
 }
 
 export enum SagaActionType {
@@ -79,5 +100,15 @@ export default function* rootSaga() {
     call(rootRiderActiveSaga),
     call(rootAddRatingSaga),
     call(rootFetchNotificationsSaga),
+    call(rootUpdateBookingStatusSaga),
+    call(rootVerifyBookingOtpSaga),
+    call(rootTrackBookingSaga),
+    call(rootFetchRiderTripsSaga),
+    call(rootDeleteAccountSaga),
+    call(rootMarkNotificationsReadSaga),
+    call(rootRejectBookingSaga),
+    call(rootCancelBookingSaga),
+    call(rootChatSaga),
+    call(rootEarningsSaga),
   ]);
 }

@@ -3,6 +3,7 @@ import { SagaActions, SagaActionType } from '../index';
 import { apiRequest, getAuthToken } from '../../../config/api.config';
 import API_ENDPOINTS from '../../../config/api.config';
 import { UploadDocumentPayload } from './uploadAction';
+import { BASE_URL } from '../../../config/api.config';
 
 // ─── Upload document saga ─────────────────────────────────────────────────────
 
@@ -22,11 +23,11 @@ export function* uploadDocumentSaga({ payload }: UploadDocumentPayload): Generat
     const response = yield call(apiRequest, API_ENDPOINTS.UPLOAD_DOCUMENT, {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${getAuthToken()}`,
+        // Authorization: `Bearer ${getAuthToken()}`,
         Accept: 'application/json',
       },
       body: formData,
-    });
+    },BASE_URL);
 
     if (!response) throw new Error('Empty response');
 

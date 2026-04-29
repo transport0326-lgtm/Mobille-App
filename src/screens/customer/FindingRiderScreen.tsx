@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import {
   View,
   StyleSheet,
@@ -7,6 +7,7 @@ import {
   Animated,
   Dimensions,
   Easing,
+  Image,
 } from 'react-native';
 import { Text } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -14,6 +15,10 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
 import { RootStackParamList } from '../../navigation/AppNavigator';
 import { Colors } from '../../theme/theme';
+import { useSelector, useDispatch } from 'react-redux';
+import { trackBooking } from '../../redux/sagas/booking/trackBookingAction';
+import { resetTrackBooking } from '../../redux/slices/bookingSlice';
+import Loader from '../../components/Loader';
 
 const { width, height } = Dimensions.get('window');
 const RADAR_HEIGHT = height * 0.40;
@@ -25,16 +30,13 @@ type FindingRiderScreenProps = {
   route: RouteProp<RootStackParamList, 'FindingRider'>;
 };
 
-// Riders at different distances from center (like real radar)
-// distance: how far from center in pixels
 const RIDERS = [
-  { angle: 200, distance: width * 0.30 }, // far left-bottom
-  { angle: 40, distance: width * 0.28 }, // far top-right
-  { angle: 310, distance: width * 0.22 }, // mid right
-  { angle: 150, distance: width * 0.18 }, // close left
+  { angle: 200, distance: width * 0.30 },
+  { angle: 40, distance: width * 0.28 },
+  { angle: 310, distance: width * 0.22 },
+  { angle: 150, distance: width * 0.18 },
 ];
 
-// Convert angle+distance to x,y position
 const getPosition = (angle: number, distance: number) => {
   const rad = (angle * Math.PI) / 180;
   return {
@@ -43,7 +45,6 @@ const getPosition = (angle: number, distance: number) => {
   };
 };
 
-// Ripple wave — expands outward from center
 const RippleWave: React.FC<{ delay: number }> = ({ delay }) => {
   const scale = useRef(new Animated.Value(0)).current;
   const opacity = useRef(new Animated.Value(0)).current;
@@ -100,7 +101,6 @@ const RippleWave: React.FC<{ delay: number }> = ({ delay }) => {
   );
 };
 
-// Person icon rider dot with bounce
 const RiderDot: React.FC<{ left: number; top: number; delay: number }> = ({ left, top, delay }) => {
   const bounce = useRef(new Animated.Value(0)).current;
 
@@ -132,7 +132,6 @@ const RiderDot: React.FC<{ left: number; top: number; delay: number }> = ({ left
         styles.riderDot,
         { left, top, transform: [{ translateY: bounce }] },
       ]}>
-      {/* Person icon — head + body */}
       <View style={styles.personIcon}>
         <View style={styles.personHead} />
         <View style={styles.personBody} />
@@ -141,87 +140,155 @@ const RiderDot: React.FC<{ left: number; top: number; delay: number }> = ({ left
   );
 };
 
-// Loader — orange D/arc shape rotating like screenshot
-// It's a circle with only right half colored = "D" shape rotating
-const ArcLoader: React.FC = () => {
-  const spin = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    const loop = Animated.loop(
-      Animated.timing(spin, {
-        toValue: 1,
-        duration: 1600,
-        easing: Easing.linear,
-        useNativeDriver: true,
-      })
-    );
-    loop.start();
-    return () => loop.stop();
-  }, []);
-
-  const rotate = spin.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['0deg', '360deg'],
-  });
-
-  return (
-    <View style={styles.loaderContainer}>
-      {/* Outer gray ring */}
-      <View style={styles.loaderGrayRing} />
-
-      {/* Rotating wrapper */}
-      <Animated.View style={[styles.loaderRotating, { transform: [{ rotate }] }]}>
-        {/* Orange arc — covers ~200deg, looks like D/leaf shape */}
-        {/* We achieve this by a circle with overflow hidden + colored half */}
-        <View style={styles.loaderArcWrapper}>
-          {/* Top half — orange */}
-          <View style={[styles.loaderHalf, styles.loaderHalfTop]} />
-          {/* Bottom half — transparent */}
-          <View style={[styles.loaderHalf, styles.loaderHalfBottom]} />
-        </View>
-      </Animated.View>
-
-      {/* White center circle to make it look like a ring */}
-      <View style={styles.loaderInner} />
-    </View>
-  );
-};
 
 const FindingRiderScreen: React.FC<FindingRiderScreenProps> = ({ navigation, route }) => {
-  const { pickup, dropoff } = route.params;
+  const { pickup, dropoff, bookingId } = route.params;
+  const dispatch = useDispatch();
+  const trackingData = useSelector((state: any) => state.booking.trackBooking?.data);
+  const intervalRef = useRef<any>(null);
+  const timeoutRef = useRef<any>(null);
+  const hasNavigated = useRef(false);
 
   useEffect(() => {
-    const timeout = setTimeout(() => {
-      navigation.replace('NoRiders', { pickup, dropoff });
+    dispatch(resetTrackBooking());
+
+    timeoutRef.current = setTimeout(() => {
+      if (!hasNavigated.current) {
+        hasNavigated.current = true;
+        if (intervalRef.current) {
+          clearInterval(intervalRef.current);
+          intervalRef.current = null;
+        }
+        navigation.replace('NoRiders', { pickup, dropoff, bookingId });
+      }
     }, 100000);
-    return () => clearTimeout(timeout);
+
+    return () => clearTimeout(timeoutRef.current);
+  }, []);
+
+  useEffect(() => {
+    if (!bookingId) return;
+    dispatch(trackBooking({ bookingId }));
+
+    intervalRef.current = setInterval(() => {
+      dispatch(trackBooking({ bookingId }));
+    }, 5000);
+
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, [bookingId]);
+
+  useEffect(() => {
+    if (!trackingData || hasNavigated.current) return;
+
+    const status = trackingData?.booking?.status ?? '';
+    const rider = trackingData?.rider ?? null;
+    const b    = trackingData?.booking ?? null;
+
+    const stopTimers = () => {
+      if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
+      if (timeoutRef.current)  { clearTimeout(timeoutRef.current);  timeoutRef.current  = null; }
+    };
+
+    // assigned / going_to_pickup → BookingConfirmed
+    if (
+      rider && (rider._id || rider.name) &&
+      ['assigned', 'going_to_pickup'].includes(status)
+    ) {
+      hasNavigated.current = true;
+      stopTimers();
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'BookingConfirmed', params: { booking: b, rider } }],
+      });
+      return;
+    }
+
+    // arrived_at_pickup → ReviewBooking directly
+    if (rider && (rider._id || rider.name) && status === 'arrived_at_pickup') {
+      hasNavigated.current = true;
+      stopTimers();
+      navigation.reset({
+        index: 0,
+        routes: [{
+          name: 'ReviewBooking',
+          params: {
+            pickup:       b?.pickupLocation?.address || '',
+            dropoff:      b?.dropoffLocation?.address || '',
+            vehicleType:  b?.vehicleType || 'bike',
+            receiverName: b?.receiverName || '',
+            receiverPhone: b?.receiverPhone || '',
+            pickupLat:   b?.pickupLocation?.coordinates?.lat  || 0,
+            pickupLng:   b?.pickupLocation?.coordinates?.lng  || 0,
+            dropoffLat:  b?.dropoffLocation?.coordinates?.lat || 0,
+            dropoffLng:  b?.dropoffLocation?.coordinates?.lng || 0,
+            bookingId:   b?._id,
+          },
+        }],
+      });
+      return;
+    }
+
+    // completed / delivered → BookingOTP
+    if (['completed', 'delivered'].includes(status)) {
+      hasNavigated.current = true;
+      stopTimers();
+      navigation.reset({
+        index: 0,
+        routes: [{
+          name: 'BookingOTP',
+          params: {
+            otp:         b?.deliveryOtp  || '',
+            bookingId:   b?._id          || '',
+            pickup:      b?.pickupLocation?.address  || '',
+            dropoff:     b?.dropoffLocation?.address || '',
+            vehicleType: b?.vehicleType  || 'bike',
+            distanceKm:  0,
+            platformFee: b?.platformFee  || 0,
+            total:       b?.fare         || 0,
+          },
+        }],
+      });
+      return;
+    }
+
+    // cancelled → CustomerDashboard
+    if (status === 'cancelled') {
+      hasNavigated.current = true;
+      stopTimers();
+      navigation.reset({ index: 0, routes: [{ name: 'CustomerDashboard' }] });
+      return;
+    }
+  }, [trackingData]);
+
+  useEffect(() => {
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      hasNavigated.current = true;
+    };
   }, []);
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
       <StatusBar barStyle="light-content" backgroundColor={Colors.secondary} />
-
-      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <Text style={styles.backArrow}>←</Text>
+          <Image
+            source={require('../../assets/icons/arrow.png')}
+            style={styles.backArrow}
+          />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Finding Rider</Text>
-        <View style={{ width: 40 }} />
       </View>
 
-      {/* Radar */}
       <View style={styles.radarArea}>
-        {/* 4 staggered ripple waves */}
         <RippleWave delay={0} />
         <RippleWave delay={650} />
         <RippleWave delay={1300} />
         <RippleWave delay={1950} />
-
-        {/* Orange center dot */}
         <View style={styles.centerDot} />
-
-        {/* Riders at distance-based positions */}
         {RIDERS.map((r, i) => {
           const pos = getPosition(r.angle, r.distance);
           return (
@@ -230,9 +297,8 @@ const FindingRiderScreen: React.FC<FindingRiderScreenProps> = ({ navigation, rou
         })}
       </View>
 
-      {/* Bottom */}
       <View style={styles.bottomSheet}>
-        <ArcLoader />
+        {!trackingData?.rider && <View style={{ marginBottom: 18 }}><Loader /></View>}
 
         <Text style={styles.findingTitle}>Finding your rider...</Text>
         <Text style={styles.findingSubtitle}>
@@ -242,33 +308,31 @@ const FindingRiderScreen: React.FC<FindingRiderScreenProps> = ({ navigation, rou
         <View style={styles.locationCard}>
           <View style={styles.locationRow}>
             <View style={[styles.locDot, { backgroundColor: '#22C55E' }]} />
-            <View>
+            <View style={styles.locTextWrap}>
               <Text style={styles.locType}>PICKUP</Text>
-              <Text style={styles.locAddress}>{pickup || 'Salt Lake Sector V, Kolkata'}</Text>
+              <Text style={styles.locAddress} numberOfLines={2} ellipsizeMode="tail">{pickup || 'Salt Lake Sector V, Kolkata'}</Text>
             </View>
           </View>
           <View style={styles.locationDivider} />
           <View style={styles.locationRow}>
             <View style={[styles.locDot, { backgroundColor: Colors.primary }]} />
-            <View>
+            <View style={styles.locTextWrap}>
               <Text style={styles.locType}>DROP-OFF</Text>
-              <Text style={styles.locAddress}>{dropoff || 'Park Street, Kolkata'}</Text>
+              <Text style={styles.locAddress} numberOfLines={2} ellipsizeMode="tail">{dropoff || 'Park Street, Kolkata'}</Text>
             </View>
           </View>
         </View>
 
         <TouchableOpacity
           style={styles.cancelBtn}
-          onPress={() => navigation.navigate('CancelBooking')}
+          onPress={() => {
+            hasNavigated.current = true;
+            if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
+            if (timeoutRef.current)  { clearTimeout(timeoutRef.current);  timeoutRef.current  = null; }
+            navigation.navigate('CancelBooking', { bookingId });
+          }}
           activeOpacity={0.8}>
           <Text style={styles.cancelBtnText}>Cancel Booking</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.riderFoundBtn}
-          onPress={() => navigation.navigate('BookingConfirmed')}
-          activeOpacity={0.85}>
-          <Text style={styles.riderFoundBtnText}>✅ Rider Found (Test)</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -281,14 +345,32 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
     backgroundColor: Colors.secondary,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
   },
-  backBtn: { width: 40, height: 40, justifyContent: 'center' },
-  backArrow: { fontSize: 22, lineHeight: 22, color: Colors.white, fontWeight: '600', includeFontPadding: false },
-  headerTitle: { fontSize: 17, lineHeight: 22, fontWeight: '700', color: Colors.white, includeFontPadding: false },
+
+  backBtn: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  backArrow: {
+    width: 20,
+    height: 20,
+    resizeMode: 'contain',
+    tintColor: '#fff',
+  },
+
+  headerTitle: {
+    fontSize: 18,
+    color: Colors.white,
+    fontWeight: '700',
+    marginLeft: 12,
+  },
+
 
   radarArea: {
     width: width,
@@ -315,7 +397,6 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
   },
 
-  // Rider dot
   riderDot: {
     position: 'absolute',
     width: 36,
@@ -328,7 +409,6 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
 
-  // Person icon inside green dot
   personIcon: {
     alignItems: 'center',
     justifyContent: 'center',
@@ -345,53 +425,6 @@ const styles = StyleSheet.create({
     height: 8,
     borderTopLeftRadius: 7,
     borderTopRightRadius: 7,
-    backgroundColor: Colors.white,
-  },
-
-  // Loader
-  loaderContainer: {
-    width: 58,
-    height: 58,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 14,
-  },
-  loaderGrayRing: {
-    position: 'absolute',
-    width: 58,
-    height: 58,
-    borderRadius: 29,
-    borderWidth: 3,
-    borderColor: '#E0E0E0',
-  },
-  loaderRotating: {
-    position: 'absolute',
-    width: 58,
-    height: 58,
-    borderRadius: 29,
-    overflow: 'hidden',
-  },
-  loaderArcWrapper: {
-    width: 58,
-    height: 58,
-  },
-  loaderHalf: {
-    width: 58,
-    height: 29,
-  },
-  loaderHalfTop: {
-    backgroundColor: Colors.primary,
-    borderTopLeftRadius: 29,
-    borderTopRightRadius: 29,
-  },
-  loaderHalfBottom: {
-    backgroundColor: 'transparent',
-  },
-  loaderInner: {
-    position: 'absolute',
-    width: 44,
-    height: 44,
-    borderRadius: 22,
     backgroundColor: Colors.white,
   },
 
@@ -435,7 +468,8 @@ const styles = StyleSheet.create({
     paddingVertical: 11,
     gap: 12,
   },
-  locDot: { width: 10, height: 10, borderRadius: 5 },
+  locDot: { width: 10, height: 10, borderRadius: 5, flexShrink: 0 },
+  locTextWrap: { flex: 1 },
   locType: {
     fontSize: 10,
     fontWeight: '700',
@@ -443,7 +477,7 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
     marginBottom: 2,
   },
-  locAddress: { fontSize: 14, fontWeight: '600', color: Colors.textDark },
+  locAddress: { fontSize: 14, fontWeight: '600', color: Colors.textDark, flexShrink: 1 },
   locationDivider: { height: 1, backgroundColor: Colors.borderGray, marginLeft: 22 },
 
   cancelBtn: {
@@ -456,20 +490,6 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.white,
   },
   cancelBtnText: { color: Colors.primary, fontSize: 15, fontWeight: '700' },
-  riderFoundBtn: {
-  width: '100%',
-  backgroundColor: '#22C55E',
-  borderRadius: 10,
-  paddingVertical: 14,
-  alignItems: 'center',
-  marginBottom: 12,
-  marginTop:10,
-},
-riderFoundBtnText: {
-  color: Colors.white,
-  fontSize: 15,
-  fontWeight: '700',
-},
 });
 
 export default FindingRiderScreen;

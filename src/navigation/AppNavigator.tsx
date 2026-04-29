@@ -25,6 +25,8 @@ import RateDeliveryScreen from '../screens/customer/RateDeliveryScreen';
 import TripCompletedScreen from '../screens/customer/TripCompletedScreen';
 import EditProfileScreen from '../screens/customer/EditProfileScreen';
 import BankPaymentScreen from '../screens/customer/BankPaymentScreen';
+import ReviewBookingScreen from '../screens/customer/ReviewBookingScreen';
+import BookingOTPScreen from '../screens/customer/BookingOTPScreen';
 
 // Rider
 import RiderDashboard from '../screens/rider/RiderDashboard';
@@ -41,14 +43,16 @@ import EditBankDetailsScreen from '../screens/rider/EditBankDetailsScreen';
 import RiderBankPaymentScreen from '../screens/rider/RiderBankPaymentScreen';
 import RiderEditProfileScreen from '../screens/rider/RiderEditProfileScreen';
 import DeliveryCompleteScreen from '../screens/rider/DeliveryCompleteScreen';
+import RiderNotificationsScreen from '../screens/rider/RiderNotificationsScreen';
+import RiderChatScreen from '../screens/rider/RiderChatScreen';
 
 export type RootStackParamList = {
   Splash: undefined;
   Login: undefined;
   OTP: { phoneNumber: string };
   CreateAccount: { phoneNumber: string };
-  FindingRider: { pickup: string; dropoff: string };
-  NoRiders: { pickup: string; dropoff: string };
+  FindingRider: { pickup: string; dropoff: string; bookingId: string; };
+  NoRiders: { pickup: string; dropoff: string ; bookingId: string; };
   SetLocation: {
     type: 'pickup' | 'dropoff';
     currentPickup?: string;
@@ -68,10 +72,48 @@ export type RootStackParamList = {
     dropoffLat?: number;
     dropoffLng?: number;
   } | undefined;
-  CancelBooking: undefined;
-  BookingConfirmed: undefined;
+  ReviewBooking: {
+    pickup: string;
+    dropoff: string;
+    vehicleType: string;
+    receiverName: string;
+    receiverPhone: string;
+    pickupLat: number;
+    pickupLng: number;
+    dropoffLat: number;
+    dropoffLng: number;
+    bookingId?: string;
+    otp?:string;
+  };
+  BookingOTP: {
+    otp: string;
+    bookingId: string;
+    pickup: string;
+    dropoff: string;
+    vehicleType: string;
+    distanceKm: number;
+    baseFare?: number;
+    ratePerKm?: number;
+    platformFee: number;
+    total: number;
+    riderName?: string;
+    vehicleNumber?: string;
+    bookingNumber?: string;
+  };
+  CancelBooking: { bookingId: string };
+  BookingConfirmed: {
+    booking: any;
+    rider: any;
+  };
   DeliveryComplete: undefined;
-  RateDelivery: undefined;
+  RateDelivery: {
+    bookingId: string;
+    riderName?: string;
+    vehicleNumber?: string;
+    vehicleType?: string;
+    bookingNumber?: string;
+    total?: number;
+  };
   EditProfile: undefined;
   HelpSupport: undefined;
   LiveChat: undefined;
@@ -91,6 +133,14 @@ export type RootStackParamList = {
   EditBankDetails: undefined;
   RiderBankPayment: undefined;
   RiderEditProfile: undefined;
+  Notifications: undefined;
+  RiderChat: {
+    customerName: string;
+    bookingNumber: string;
+    bookingStatus: string;
+    customerPhone?: string;
+    bookingId?: string;
+  };
   MapPicker: {
     type: 'pickup' | 'dropoff';
     currentPickup?: string;
@@ -117,6 +167,8 @@ const AppNavigator: React.FC = () => {
         <Stack.Screen name="CustomerDashboard" component={CustomerDashboard} />
         <Stack.Screen name="FindingRider" component={FindingRiderScreen} />
         <Stack.Screen name="SetLocation" component={SetLocationScreen} />
+        <Stack.Screen name="ReviewBooking" component={ReviewBookingScreen} />
+        <Stack.Screen name="BookingOTP" component={BookingOTPScreen} />
         <Stack.Screen name="CancelBooking" component={CancelBookingScreen} />
         <Stack.Screen name="NoRiders" component={NoRidersScreen} />
         <Stack.Screen name="BookingConfirmed" component={BookingConfirmedScreen} />
@@ -142,6 +194,8 @@ const AppNavigator: React.FC = () => {
         <Stack.Screen name="RiderBankPayment" component={RiderBankPaymentScreen} />
         <Stack.Screen name="RiderEditProfile" component={RiderEditProfileScreen} />
         <Stack.Screen name="MapPicker" component={MapPickerScreen} />
+        <Stack.Screen name="Notifications" component={RiderNotificationsScreen} />
+        <Stack.Screen name="RiderChat" component={RiderChatScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );

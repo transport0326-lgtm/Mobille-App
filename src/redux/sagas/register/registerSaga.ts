@@ -1,14 +1,14 @@
 import { call, put, takeEvery, spawn } from 'redux-saga/effects';
 import { SagaActions, SagaActionType } from '../index';
-import { apiRequest, getAuthToken } from '../../../config/api.config';
-import API_ENDPOINTS from '../../../config/api.config';
+import { apiRequest, API_ENDPOINTS } from '../../../config/api.config';
 import { RegisterPayload } from './registerAction';
+import { saveToken, saveRole } from '../../../utils/tokenStorage';
+
 
 // ─── Register saga ────────────────────────────────────────────────────────────
 
 export function* registerSaga({ payload }: RegisterPayload): Generator<any, void, any> {
   yield put({ type: `${SagaActions.CLEAR}_${SagaActions.REGISTER}` });
-
   try {
     const body: Record<string, string> = {
       phone:    payload.phone,
@@ -26,15 +26,19 @@ export function* registerSaga({ payload }: RegisterPayload): Generator<any, void
 
     const response = yield call(apiRequest, API_ENDPOINTS.REGISTER, {
       method: 'POST',
-      headers: {
-        Authorization: `Bearer ${getAuthToken()}`,
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-      },
       body: JSON.stringify(body),
     });
 
     if (!response) throw new Error('Empty response');
+
+    if (response.data?.token) {
+      try {
+        yield call(saveToken, response.data.token);
+        if (response.data.role) yield call(saveRole, response.data.role);
+      } catch (storageError) {
+        console.warn('[Register] Failed to persist token:', storageError);
+      }
+    }
 
     yield put({
       type: `${SagaActions.REGISTER}_${SagaActionType.SUCCESS}`,

@@ -1,9 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import Geolocation from 'react-native-geolocation-service';
-import { useDispatch } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
 import { setBookingCoords } from '../../redux/slices/bookingSlice';
-import { fareEstimate } from '../../redux/sagas/booking/fareEstimateAction';
-import type { AppDispatch } from '../../redux/store';
+import type { AppDispatch, RootState } from '../../redux/store';
 import {
   View,
   StyleSheet,
@@ -15,6 +14,7 @@ import {
   PermissionsAndroid,
   Platform,
   Alert,
+  Image,
 } from 'react-native';
 import { Text } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -22,22 +22,41 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
 import { RootStackParamList } from '../../navigation/AppNavigator';
 import { Colors } from '../../theme/theme';
-import { Suggestion, searchSuggestions, reverseGeocode, forwardGeocode, geocodeByELoc } from '../../utils/mapProviders';
+import { Suggestion, searchSuggestions, reverseGeocode, forwardGeocode } from '../../utils/mapProviders';
+import { fetchOrders } from '../../redux/sagas/booking/ordersAction';
 
 type SetLocationScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'SetLocation'>;
   route: RouteProp<RootStackParamList, 'SetLocation'>;
 };
 
-const RECENT_LOCATIONS: Suggestion[] = [
-  { id: 'r1', name: 'Park Street, Kolkata', address: 'Park Street, Kolkata, West Bengal 700016' },
-  { id: 'r2', name: 'Hitech City, Hyderabad', address: 'Hitech City, Madhapur, Hyderabad, TS 500081' },
-  { id: 'r3', name: 'Chauliaganj, Cuttack', address: 'Chauliaganj, Cuttack, Odisha 753001' },
-];
+
 
 const SetLocationScreen: React.FC<SetLocationScreenProps> = ({ navigation, route }) => {
   const dispatch = useDispatch<AppDispatch>();
-  const { type, currentPickup, currentDropoff } = route.params;
+  const bookings = useSelector((state: RootState) => state.orders.bookings);
+
+  const recentLocations = useMemo((): Suggestion[] => {
+    const seen = new Set<string>();
+    const result: Suggestion[] = [];
+    for (const b of bookings) {
+      const addr = b.dropoffLocation?.address;
+      const lat = b.dropoffLocation?.coordinates?.lat;
+      const lng = b.dropoffLocation?.coordinates?.lng;
+      if (addr && lat != null && lng != null && !seen.has(addr)) {
+        seen.add(addr);
+        const comma = addr.indexOf(',');
+        const name = comma > 0 ? addr.substring(0, comma).trim() : addr;
+        result.push({ id: b._id, name, address: addr, lat, lng });
+      }
+      if (result.length >= 5) break;
+    }
+    return result;
+  }, [bookings]);
+
+  const { type = 'pickup', currentPickup = '', currentDropoff = '' } = route.params ?? {};
+  // Component ke andar sabse upar
+console.log('SetLocation route.params:', JSON.stringify(route.params));
 
   const [pickupText, setPickupText] = useState(currentPickup || '');
   const [dropoffText, setDropoffText] = useState(currentDropoff || '');
@@ -81,6 +100,7 @@ const SetLocationScreen: React.FC<SetLocationScreenProps> = ({ navigation, route
   ]);
 
   useEffect(() => {
+    dispatch(fetchOrders());
     requestAndDetectLocation();
     if (type === 'dropoff') {
       setTimeout(() => dropoffRef.current?.focus(), 500);
@@ -242,15 +262,6 @@ const SetLocationScreen: React.FC<SetLocationScreenProps> = ({ navigation, route
       dispatch(setBookingCoords(payload));
 
       console.log('📦 Dispatched Coords:', payload);
-
-      // ===== FARE API =====
-      dispatch(
-        fareEstimate({
-          ...payload,
-          vehicleType: route.params.vehicleType ?? 'bike',
-        })
-      );
-
       // ===== NAVIGATION =====
       navigation.navigate('CustomerDashboard', {
         confirmedPickup: pickupText,
@@ -274,11 +285,13 @@ const SetLocationScreen: React.FC<SetLocationScreenProps> = ({ navigation, route
 
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <Text style={styles.backArrow}>←</Text>
-        </TouchableOpacity>
+              <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+                <Image
+                  source={require('../../assets/icons/arrow.png')}
+                  style={styles.backArrow}
+                />
+              </TouchableOpacity>
         <Text style={styles.headerTitle}>Set Location</Text>
-        <View style={{ width: 40 }} />
       </View>
 
       <ScrollView
@@ -372,8 +385,8 @@ const SetLocationScreen: React.FC<SetLocationScreenProps> = ({ navigation, route
                     activeOpacity={0.7}>
                     <Text style={styles.resultPin}>📍</Text>
                     <View style={styles.resultInfo}>
-                      <Text style={styles.resultName}>{item.name}</Text>
-                      {item.address ? <Text style={styles.resultAddr}>{item.address}</Text> : null}
+                      <Text style={styles.resultName} numberOfLines={1} ellipsizeMode="tail">{item.name}</Text>
+                      {item.address ? <Text style={styles.resultAddr} numberOfLines={2} ellipsizeMode="tail">{item.address}</Text> : null}
                     </View>
                   </TouchableOpacity>
                 ))
@@ -382,22 +395,24 @@ const SetLocationScreen: React.FC<SetLocationScreenProps> = ({ navigation, route
           )}
 
           {/* Recent Locations */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Recent Locations</Text>
-            {RECENT_LOCATIONS.map((item, i) => (
-              <TouchableOpacity
-                key={item.id}
-                style={[styles.resultRow, i === RECENT_LOCATIONS.length - 1 && { borderBottomWidth: 0 }]}
-                onPress={() => handleSelectSuggestion(item)}
-                activeOpacity={0.7}>
-                <Text style={styles.resultClock}>🕐</Text>
-                <View style={styles.resultInfo}>
-                  <Text style={styles.resultName}>{item.name}</Text>
-                  <Text style={styles.resultAddr}>{item.address}</Text>
-                </View>
-              </TouchableOpacity>
-            ))}
-          </View>
+          {recentLocations.length > 0 && suggestions.length === 0 && !suggestionsLoading && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Recent Locations</Text>
+              {recentLocations.map((item, i) => (
+                <TouchableOpacity
+                  key={item.id}
+                  style={[styles.resultRow, i === recentLocations.length - 1 && { borderBottomWidth: 0 }]}
+                  onPress={() => handleSelectSuggestion(item)}
+                  activeOpacity={0.7}>
+                  <Text style={styles.resultClock}>🕐</Text>
+                  <View style={styles.resultInfo}>
+                    <Text style={styles.resultName} numberOfLines={1} ellipsizeMode="tail">{item.name}</Text>
+                    <Text style={styles.resultAddr} numberOfLines={2} ellipsizeMode="tail">{item.address}</Text>
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
 
         </View>
       </ScrollView>
@@ -425,12 +440,33 @@ const SetLocationScreen: React.FC<SetLocationScreenProps> = ({ navigation, route
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: Colors.white },
   header: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 16, paddingVertical: 12, backgroundColor: Colors.secondary,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.secondary,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
   },
-  backBtn: { width: 40, height: 40, justifyContent: 'center' },
-  backArrow: { fontSize: 22, lineHeight: 22, color: Colors.white, fontWeight: '600', includeFontPadding: false },
-  headerTitle: { fontSize: 17, lineHeight: 22, fontWeight: '700', color: Colors.white, includeFontPadding: false },
+
+  backBtn: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  backArrow: {
+    width: 20,
+    height: 20,
+    resizeMode: 'contain',
+    tintColor: '#fff',
+  },
+
+  headerTitle: {
+    fontSize: 18,
+    color: Colors.white,
+    fontWeight: '700',
+    marginLeft: 12,
+  },
 
   content: { paddingHorizontal: 14, paddingTop: 14, paddingBottom: 20 },
 
@@ -464,8 +500,8 @@ const styles = StyleSheet.create({
   resultPin: { fontSize: 18, marginTop: 1 },
   resultClock: { fontSize: 18, marginTop: 1 },
   resultInfo: { flex: 1 },
-  resultName: { fontSize: 14, fontWeight: '600', color: Colors.textDark, marginBottom: 2 },
-  resultAddr: { fontSize: 12, color: Colors.textGray, lineHeight: 17 },
+  resultName: { fontSize: 14, fontWeight: '600', color: Colors.textDark, marginBottom: 2, flexShrink: 1 },
+  resultAddr: { fontSize: 12, color: Colors.textGray, lineHeight: 17, flexShrink: 1 },
 
   bottomBar: {
     paddingHorizontal: 16, paddingVertical: 12,

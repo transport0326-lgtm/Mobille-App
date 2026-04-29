@@ -19,11 +19,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../navigation/AppNavigator';
 import { sendOtp } from '../../redux/sagas/auth/authAction';
 import { resetSendOtp } from '../../redux/slices/authSlice';
-import { TEST_OTP } from '../../redux/sagas/auth/authSaga';
 import type { RootState, AppDispatch } from '../../redux/store';
-
-// Test phone number that bypasses the real API
-const TEST_PHONE = '9999999999';
 
 type LoginScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'Login'>;
@@ -147,12 +143,6 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
               <Text style={styles.termsLink}>Privacy Policy</Text>.
             </Text>
 
-            {/* Test credentials hint */}
-            <View style={styles.testHint}>
-              <Text style={styles.testHintText}>
-                Test: {TEST_PHONE}  •  OTP: {TEST_OTP}
-              </Text>
-            </View>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -283,23 +273,6 @@ const styles = StyleSheet.create({
   termsLink: {
     color: Colors.secondary,
     fontWeight: '600',
-  },
-
-  // Test hint
-  testHint: {
-    alignItems: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    backgroundColor: '#FFF8E1',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#FFE082',
-  },
-  testHintText: {
-    fontSize: 12,
-    color: '#795548',
-    fontWeight: '600',
-    letterSpacing: 0.3,
   },
 });
 

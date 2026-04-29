@@ -1,36 +1,57 @@
-﻿import React from 'react';
+﻿import React, { useEffect } from 'react';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import {
   View,
   StyleSheet,
   StatusBar,
   TouchableOpacity,
-  Dimensions,
 } from 'react-native';
 import { Text } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Colors } from '../../theme/theme';
 import { RootStackParamList } from '../../navigation/AppNavigator';
-
-const { width } = Dimensions.get('window');
+import { useDispatch } from 'react-redux';
+import { resetUpdateBookingStatus } from '../../redux/slices/updateBookingStatus';
+import { resetVerifyOtpState } from '../../redux/slices/verifyBookingOtpSlice';
+import { resetAcceptBooking } from '../../redux/slices/acceptBookingSlice';
+import { resetTrackBooking } from '../../redux/slices/bookingSlice';
+import { useSelector } from 'react-redux';
+import type { RootState } from '../../redux/store';
 
 type Props = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'TripCompleted'>;
 };
 const TripCompletedScreen: React.FC<Props> = ({ navigation }) => {
+  const dispatch = useDispatch();
+  const booking = useSelector((state: any) => state.verifyBookingOtp.data?.booking);
+  const fullData = useSelector((state: RootState) => state.verifyBookingOtp);
+
+useEffect(() => {
+  console.log('FULL VERIFY STATE:', JSON.stringify(fullData));
+}, [fullData]);
+
+  const handleBackToHome = () => {
+    dispatch(resetUpdateBookingStatus());
+    dispatch(resetAcceptBooking());
+    dispatch(resetVerifyOtpState());
+    dispatch(resetTrackBooking());
+    navigation.reset({ index: 0, routes: [{ name: 'RiderDashboard' }] });
+  };
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
       <StatusBar barStyle="light-content" backgroundColor={Colors.secondary} />
 
       {/* Top green banner */}
       <View style={styles.topBanner}>
-        <Text style={styles.timeText}>9:41</Text>
         <View style={styles.checkCircle}>
           <MaterialIcons name="check" size={28} color={Colors.white} />
         </View>
         <Text style={styles.tripTitle}>Trip Completed!</Text>
-        <Text style={styles.tripSub}>BK-1042 delivered successfully</Text>
+        <Text style={styles.timeText}>
+          {new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+        </Text>
+        <Text style={styles.tripSub}>{booking?.bookingNumber ?? ''} delivered successfully</Text>
       </View>
 
       {/* White content area */}
@@ -42,16 +63,25 @@ const TripCompletedScreen: React.FC<Props> = ({ navigation }) => {
         {/* Earned amount card */}
         <View style={styles.earningsCard}>
           <Text style={styles.earnedLabel}>You Earned</Text>
-          <Text style={styles.earnedAmount}>₹ 55</Text>
+          <Text style={styles.earnedAmount}>₹ {booking?.fare ?? 0}</Text>
         </View>
 
         {/* Trip details */}
         <View style={styles.detailsCard}>
           {[
-            { label: 'Distance', value: '3.2 km' },
-            { label: 'Duration', value: '18 min' },
-            { label: 'Vehicle', value: 'Bike' },
-            { label: 'Payment', value: 'Online Pay' },
+            {
+              label: 'Distance', value: (() => {
+                if (!booking?.pickupLocation || !booking?.dropoffLocation) return 'N/A';
+                const R = 6371;
+                const dLat = ((booking.dropoffLocation.coordinates.lat - booking.pickupLocation.coordinates.lat) * Math.PI) / 180;
+                const dLng = ((booking.dropoffLocation.coordinates.lng - booking.pickupLocation.coordinates.lng) * Math.PI) / 180;
+                const a = Math.sin(dLat / 2) ** 2 + Math.cos(booking.pickupLocation.coordinates.lat * Math.PI / 180) * Math.cos(booking.dropoffLocation.coordinates.lat * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+                return `${(R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))).toFixed(1)} km`;
+              })()
+            },
+            { label: 'Duration', value: '20 min' },
+            { label: 'Vehicle', value: booking?.vehicleType ?? '—' },
+            { label: 'Payment', value: booking?.paymentStatus === 'paid' ? 'Online Pay' : 'Online Pay' },
           ].map((row, i, arr) => (
             <View
               key={i}
@@ -69,11 +99,11 @@ const TripCompletedScreen: React.FC<Props> = ({ navigation }) => {
         <View style={styles.routeCard}>
           <View style={styles.routeRow}>
             <View style={[styles.routeDot, { backgroundColor: '#22C55E' }]} />
-            <Text style={styles.routeText}>Salt Lake Sector V, Kolkata</Text>
+            <Text style={styles.routeText} numberOfLines={2} ellipsizeMode="tail">{booking?.pickupLocation?.address ?? 'N/A'}</Text>
           </View>
           <View style={styles.routeRow}>
             <View style={[styles.routeDot, { backgroundColor: Colors.primary }]} />
-            <Text style={styles.routeText}>Park Street, Kolkata</Text>
+            <Text style={styles.routeText} numberOfLines={2} ellipsizeMode="tail">{booking?.dropoffLocation?.address ?? 'N/A'}</Text>
           </View>
         </View>
 
@@ -83,7 +113,7 @@ const TripCompletedScreen: React.FC<Props> = ({ navigation }) => {
       <View style={styles.bottomBar}>
         <TouchableOpacity
           style={styles.homeBtn}
-          onPress={() => navigation.reset({ index: 0, routes: [{ name: 'RiderDashboard' }] })}
+          onPress={handleBackToHome}
           activeOpacity={0.85}>
           <Text style={styles.homeBtnText}>Back to Home</Text>
         </TouchableOpacity>
@@ -162,8 +192,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
   },
-  routeDot: { width: 10, height: 10, borderRadius: 5 },
-  routeText: { fontSize: 14, fontWeight: '500', color: Colors.textDark },
+  routeDot: { width: 10, height: 10, borderRadius: 5, flexShrink: 0 },
+  routeText: { flex: 1, fontSize: 14, fontWeight: '500', color: Colors.textDark },
 
   // Bottom
   bottomBar: {

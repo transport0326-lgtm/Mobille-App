@@ -1,130 +1,140 @@
-﻿import React, { useState } from 'react';
+import React, { useEffect } from 'react';
 import {
   View,
   StyleSheet,
   StatusBar,
   TouchableOpacity,
   ScrollView,
+  ActivityIndicator,
+  Image,
+  ImageSourcePropType,
 } from 'react-native';
 import { Text } from 'react-native-paper';
+import { useDispatch, useSelector } from 'react-redux';
 import { Colors } from '../../theme/theme';
+import { getNotifications } from '../../redux/sagas/notifications/riderNotificationsAction';
+import {
+  markNotificationRead,
+  markAllNotificationsRead,
+} from '../../redux/sagas/notifications/markNotificationsReadAction';
+import type { RootState, AppDispatch } from '../../redux/store';
 
-type Notification = {
-  id: string;
-  icon: string;
-  iconBg: string;
-  title: string;
-  subtitle: string;
-  time: string;
-  unread: boolean;
-  section: 'Today' | 'Earlier';
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+const getIconImage = (type: string): { image: ImageSourcePropType; bg: string } => {
+  const t = type?.toLowerCase() ?? '';
+
+  if (t.includes('delivery') || t.includes('completed'))
+    return { image: require('../../assets/icons/tickIcon.png'), bg: '#16A34A' };   // .pgn → .png fix
+
+  if (t.includes('booking') || t.includes('confirmed'))
+    return { image: require('../../assets/icons/riderIcon.png'), bg: '#16A34A' };  // .pgn → .png fix
+
+  if (t.includes('pickup'))
+    return { image: require('../../assets/icons/riderIcon.png'), bg: '#92400E' };  // .pgn → .png fix
+
+  if (t.includes('rider') || t.includes('assigned'))
+    return { image: require('../../assets/icons/riderIcon.png'), bg: '#64748B' };
+
+  if (t.includes('payment_received') || t.includes('earning'))
+    return { image: require('../../assets/icons/wallet.png'), bg: '#374151' };
+
+  if (t.includes('withdrawal'))
+    return { image: require('../../assets/icons/paymentIcon.png'), bg: '#16A34A' };
+
+  if (t.includes('cancel') && t.includes('fee'))
+    return { image: require('../../assets/icons/fee_cancelIcon.png'), bg: '#F97316' };
+
+  if (t.includes('cancel'))
+    return { image: require('../../assets/icons/cancel.png'), bg: '#EF4444' };
+
+  if (t.includes('verif') || t.includes('document') || t.includes('kyc'))
+    return { image: require('../../assets/icons/documents.png'), bg: '#16A34A' };
+
+  if (t.includes('payment'))
+    return { image: require('../../assets/icons/paymentIcon.png'), bg: '#374151' };
+
+  return { image: require('../../assets/icons/notifications.png'), bg: '#64748B' };
 };
 
-const NOTIFICATIONS: Notification[] = [
-  {
-    id: '1',
-    icon: '✓',
-    iconBg: '#16A34A',
-    title: 'Delivery Completed',
-    subtitle: 'BK-1042 delivered to Park Street. Rate your experience!',
-    time: '2 min ago',
-    unread: true,
-    section: 'Today',
-  },
-  {
-    id: '2',
-    icon: '🛺',
-    iconBg: Colors.primary,
-    title: 'Rider On The Way',
-    subtitle: 'Jahid Hasan is heading to your drop-off location',
-    time: '15 min ago',
-    unread: true,
-    section: 'Today',
-  },
-  {
-    id: '3',
-    icon: '📦',
-    iconBg: '#92400E',
-    title: 'Parcel Picked Up',
-    subtitle: 'Your parcel has been picked up from Salt Lake Sector V',
-    time: '28 min ago',
-    unread: true,
-    section: 'Today',
-  },
-  {
-    id: '4',
-    icon: '🏍️',
-    iconBg: '#64748B',
-    title: 'Rider Assigned',
-    subtitle: 'Jahid Hasan (★4.8) assigned to BK-1042',
-    time: '32 min ago',
-    unread: false,
-    section: 'Today',
-  },
-  {
-    id: '5',
-    icon: '✓',
-    iconBg: '#16A34A',
-    title: 'Booking Confirmed',
-    subtitle: 'BK-1042 confirmed. Finding nearby rider...',
-    time: '35 min ago',
-    unread: false,
-    section: 'Today',
-  },
-  {
-    id: '6',
-    icon: '💳',
-    iconBg: '#374151',
-    title: 'Payment Processed',
-    subtitle: '₹60.60 charged for BK-1039',
-    time: 'Yesterday',
-    unread: false,
-    section: 'Earlier',
-  },
-  {
-    id: '7',
-    icon: '⭐',
-    iconBg: '#B45309',
-    title: 'You Rated 5 Stars',
-    subtitle: 'Thanks for rating your delivery experience!',
-    time: 'Yesterday',
-    unread: false,
-    section: 'Earlier',
-  },
-];
+const isToday = (dateStr: string) => {
+  const d = new Date(dateStr);
+  const now = new Date();
+  return (
+    d.getFullYear() === now.getFullYear() &&
+    d.getMonth() === now.getMonth() &&
+    d.getDate() === now.getDate()
+  );
+};
+
+const formatTime = (dateStr: string): string => {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'Just now';
+  if (mins < 60) return `${mins} min ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs} hr ago`;
+  const days = Math.floor(hrs / 24);
+  if (days === 1) return 'Yesterday';
+  return `${days} days ago`;
+};
+
+// ─── Main Screen ──────────────────────────────────────────────────────────────
 
 type NotificationsScreenProps = {
   onBack: () => void;
 };
 
 const NotificationsScreen: React.FC<NotificationsScreenProps> = ({ onBack }) => {
-  const [notifications, setNotifications] = useState(NOTIFICATIONS);
-
-  const markAllRead = () => {
-    setNotifications(prev => prev.map(n => ({ ...n, unread: false })));
-  };
-
-  const todayItems = notifications.filter(n => n.section === 'Today');
-  const earlierItems = notifications.filter(n => n.section === 'Earlier');
-
-  const renderItem = (item: Notification) => (
-    <TouchableOpacity
-      key={item.id}
-      style={[styles.notifCard, item.unread && styles.notifCardUnread]}
-      activeOpacity={0.8}>
-      <View style={[styles.iconCircle, { backgroundColor: item.iconBg }]}>
-        <Text style={styles.iconText}>{item.icon}</Text>
-      </View>
-      <View style={styles.notifBody}>
-        <Text style={styles.notifTitle}>{item.title}</Text>
-        <Text style={styles.notifSubtitle} numberOfLines={1}>{item.subtitle}</Text>
-        <Text style={[styles.notifTime, item.unread && styles.notifTimeUnread]}>
-          {item.time}
-        </Text>
-      </View>
-      {item.unread && <View style={styles.unreadDot} />}
-    </TouchableOpacity>
+  const dispatch = useDispatch<AppDispatch>();
+  const { notifications, loading } = useSelector(
+    (state: RootState) => state.notifications,
   );
+
+  useEffect(() => {
+    dispatch(getNotifications());
+  }, []);
+
+  const todayItems = notifications.filter(n => isToday(n.createdAt));
+  const earlierItems = notifications.filter(n => !isToday(n.createdAt));
+
+  // ─── Notification Card ───────────────────────────────────────────────────
+  const renderNotificationCard = (item: typeof notifications[0]) => {
+    const { image, bg } = getIconImage(item.type);
+    return (
+      <TouchableOpacity
+        key={item._id}
+        style={[styles.notifCard, !item.isRead && styles.notifCardUnread]}
+        onPress={() => dispatch(markNotificationRead(item._id))}
+        activeOpacity={0.7}>
+
+        {/* Icon */}
+        <View style={[styles.iconCircle, { backgroundColor: bg }]}>
+          <Image
+            source={image}
+            style={{ width: 22, height: 22, tintColor: 'white' }}
+            resizeMode="contain"
+          />
+        </View>
+
+        {/* Body */}
+        <View style={styles.notifBody}>
+          <Text style={styles.notifTitle}>{item.title}</Text>
+          {!!item.message && (
+            <Text style={styles.notifSubtitle} numberOfLines={2}>
+              {item.message}
+            </Text>
+          )}
+          <Text style={[styles.notifTime, !item.isRead && styles.notifTimeUnread]}>
+            {formatTime(item.createdAt)}
+          </Text>
+        </View>
+
+        {/* Unread dot */}
+        {!item.isRead && <View style={styles.unreadDot} />}
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <>
@@ -133,29 +143,49 @@ const NotificationsScreen: React.FC<NotificationsScreenProps> = ({ onBack }) => 
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.title}>Notifications</Text>
-        <TouchableOpacity onPress={markAllRead} activeOpacity={0.7}>
+        <TouchableOpacity
+          onPress={() => dispatch(markAllNotificationsRead())}
+          activeOpacity={0.7}>
           <Text style={styles.markAllRead}>Mark all read</Text>
         </TouchableOpacity>
       </View>
 
-      <ScrollView
-        style={styles.list}
-        contentContainerStyle={styles.listContent}
-        showsVerticalScrollIndicator={false}>
+      {loading && notifications.length === 0 ? (
+        <View style={styles.centered}>
+          <ActivityIndicator size="large" color={Colors.secondary} />
+        </View>
+      ) : notifications.length === 0 ? (
+        <View style={styles.centered}>
+          <Text style={styles.emptyText}>No notifications yet</Text>
+        </View>
+      ) : (
+        <ScrollView
+          style={styles.list}
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}>
 
-        {/* Today */}
-        <Text style={styles.sectionLabel}>Today</Text>
-        {todayItems.map(renderItem)}
+          {todayItems.length > 0 && (
+            <>
+              <Text style={styles.sectionLabel}>Today</Text>
+              {todayItems.map(renderNotificationCard)}  {/* fix */}
+            </>
+          )}
 
-        {/* Earlier */}
-        <Text style={[styles.sectionLabel, { marginTop: 8 }]}>Earlier</Text>
-        {earlierItems.map(renderItem)}
+          {earlierItems.length > 0 && (
+            <>
+              <Text style={[styles.sectionLabel, { marginTop: 8 }]}>Earlier</Text>
+              {earlierItems.map(renderNotificationCard)}  {/* fix */}
+            </>
+          )}
 
-        <View style={{ height: 16 }} />
-      </ScrollView>
+          <View style={{ height: 16 }} />
+        </ScrollView>
+      )}
     </>
   );
 };
+
+// ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
   header: {
@@ -176,7 +206,6 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.75)',
     fontWeight: '500',
   },
-
   list: {
     flex: 1,
     backgroundColor: Colors.background,
@@ -185,7 +214,6 @@ const styles = StyleSheet.create({
     paddingTop: 16,
     paddingBottom: 8,
   },
-
   sectionLabel: {
     fontSize: 13,
     fontWeight: '700',
@@ -193,7 +221,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     marginBottom: 6,
   },
-
   notifCard: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -214,10 +241,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginRight: 12,
     flexShrink: 0,
-  },
-  iconText: {
-    fontSize: 18,
-    color: Colors.white,
   },
   notifBody: {
     flex: 1,
@@ -248,6 +271,17 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary,
     marginTop: 4,
     flexShrink: 0,
+  },
+  centered: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+  },
+  emptyText: {
+    fontSize: 15,
+    color: Colors.textGray,
+    fontWeight: '500',
   },
 });
 

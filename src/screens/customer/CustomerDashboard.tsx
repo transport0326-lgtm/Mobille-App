@@ -2,9 +2,8 @@
 import { useSelector, useDispatch } from 'react-redux';
 import { RouteProp } from '@react-navigation/native';
 import type { RootState } from '../../redux/store';
-import { ActivityIndicator } from 'react-native';
+import { ActivityIndicator, Image } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import {
   View,
   StyleSheet,
@@ -26,10 +25,11 @@ import { RootStackParamList } from '../../navigation/AppNavigator';
 import { Colors } from '../../theme/theme';
 import { fareEstimate } from '../../redux/sagas/booking/fareEstimateAction';
 import { createBooking } from '../../redux/sagas/booking/createBookingAction';
-import { resetBooking, resetCreateBooking } from '../../redux/slices/bookingSlice';
+import { resetBooking } from '../../redux/slices/bookingSlice';
 import { fetchProfile } from '../../redux/sagas/profile/profileAction';
 import { clearToken } from '../../utils/tokenStorage';
 import type { AppDispatch } from '../../redux/store';
+import AppHeader from '../../components/AppHeader';
 import MyOrdersScreen from './MyOrdersScreen';
 import NotificationsScreen from '../shared/NotificationsScreen';
 import ProfileScreen from './ProfileScreen';
@@ -53,10 +53,10 @@ const SCREEN_WIDTH = Dimensions.get('window').width;
 const CARD_WIDTH = (SCREEN_WIDTH - 48) / 4;
 
 const VEHICLES: Vehicle[] = [
-  { id: 'bike',      emoji: '🏍️', name: 'Bike',       capacity: 'Up to 20 kg',   fareMin: 45,  fareMax: 60  },
-  { id: 'auto',      emoji: '🛺', name: 'Auto',       capacity: 'Up to 50 kg',   fareMin: 70,  fareMax: 90  },
-  { id: 'miniTruck', emoji: '🚚', name: 'Mini Truck', capacity: 'Up to 200 kg',  fareMin: 150, fareMax: 200 },
-  { id: 'truck',     emoji: '🚛', name: 'Truck',      capacity: 'Up to 1000 kg', fareMin: 400, fareMax: 600 },
+  { id: 'bike', emoji: '🏍️', name: 'Bike', capacity: 'Up to 20 kg', fareMin: 45, fareMax: 60 },
+  { id: 'auto', emoji: '🛺', name: 'Auto', capacity: 'Up to 50 kg', fareMin: 70, fareMax: 90 },
+  { id: 'miniTruck', emoji: '🚚', name: 'Mini Truck', capacity: 'Up to 200 kg', fareMin: 150, fareMax: 200 },
+  { id: 'truck', emoji: '🚛', name: 'Truck', capacity: 'Up to 1000 kg', fareMin: 400, fareMax: 600 },
 ];
 
 type TabName = 'Home' | 'Orders' | 'Alerts' | 'Profile';
@@ -73,9 +73,6 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ navigation, route
   const { loading: fareLoading, data: fareData, error: fareError } = useSelector(
     (state: RootState) => state.booking.fareEstimate,
   );
-  const { loading: bookingLoading, data: bookingData, error: bookingError } = useSelector(
-    (state: RootState) => state.booking.createBooking,
-  );
 
   const [pickup, setPickup] = useState(route.params?.confirmedPickup || '');
   const [dropoff, setDropoff] = useState(route.params?.confirmedDropoff || '');
@@ -86,11 +83,22 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ navigation, route
     (state: RootState) => state.booking.coords,
   );
 
+  const customerName = useSelector(
+    (state: RootState) =>
+      (state.profile.data as any)?.name ??
+      (state.profile.data as any)?.user?.name ??
+      'Customer',
+  );
+
+  const { loading: bookingLoading, data: bookingData, error: bookingError } = useSelector(
+    (state: RootState) => state.booking.createBooking,
+  );
+
   // Sync address labels when returning from SetLocation
   useEffect(() => {
     const p = route.params;
     if (!p) return;
-    if (p.confirmedPickup  != null) setPickup(p.confirmedPickup);
+    if (p.confirmedPickup != null) setPickup(p.confirmedPickup);
     if (p.confirmedDropoff != null) setDropoff(p.confirmedDropoff);
   }, [route.params]);
 
@@ -114,12 +122,6 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ navigation, route
     dispatch(fareEstimate({ pickupLat, pickupLng, dropoffLat, dropoffLng, vehicleType: selectedVehicle }));
   }, [selectedVehicle]);
 
-  // Navigate to FindingRider once the booking is created
-  useEffect(() => {
-    if (!bookingData) return;
-    dispatch(resetCreateBooking());
-    navigation.navigate('FindingRider', { pickup, dropoff });
-  }, [bookingData]);
 
   const [parcelDetails, setParcelDetails] = useState('');
   const [receiverName, setReceiverName] = useState('');
@@ -130,6 +132,10 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ navigation, route
   const [allContacts, setAllContacts] = useState<Contact[]>([]);
   const [contactSearch, setContactSearch] = useState('');
   const [contactsLoading, setContactsLoading] = useState(false);
+
+  useEffect(() => {
+    dispatch(fetchProfile());
+  }, []);
 
   useEffect(() => {
     if (activeTab === 'Profile') {
@@ -175,9 +181,9 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ navigation, route
   const filteredContacts = contactSearch.trim().length === 0
     ? allContacts
     : allContacts.filter(c => {
-        const full = [c.givenName, c.familyName].filter(Boolean).join(' ').toLowerCase();
-        return full.includes(contactSearch.toLowerCase());
-      });
+      const full = [c.givenName, c.familyName].filter(Boolean).join(' ').toLowerCase();
+      return full.includes(contactSearch.toLowerCase());
+    });
 
   const currentVehicle = VEHICLES.find(v => v.id === selectedVehicle)!;
   const isValidName = (name: string) => /^[A-Za-z ,]{3,}$/.test(name);
@@ -192,16 +198,36 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ navigation, route
     isValidPhone(receiverPhone);
 
   const handleBookNow = () => {
-    if (!isBookingReady || pickupLat == null || pickupLng == null || dropoffLat == null || dropoffLng == null) return;
+    if (!isBookingReady) return;
+    if (pickupLat == null || pickupLng == null || dropoffLat == null || dropoffLng == null) {
+      Alert.alert('Location missing', 'Please select both pickup and drop-off locations from the location screen.');
+      return;
+    }
     dispatch(createBooking({
-      pickupLocation:  { address: pickup,  coordinates: { lat: pickupLat,  lng: pickupLng  } },
+      pickupLocation: { address: pickup, coordinates: { lat: pickupLat, lng: pickupLng } },
       dropoffLocation: { address: dropoff, coordinates: { lat: dropoffLat, lng: dropoffLng } },
-      vehicleType:   selectedVehicle,
+      vehicleType: selectedVehicle,
       receiverName,
       receiverPhone,
       ...(parcelDetails.trim() ? { parcelDetails: parcelDetails.trim() } : {}),
     }));
   };
+
+  useEffect(() => {
+    if (bookingLoading) return;
+    if (!bookingData) return;
+
+    const bookingId = bookingData?.booking?._id;
+
+    // dispatch(resetCreateBooking());
+
+    navigation.navigate('FindingRider', {
+      pickup,
+      dropoff,
+      bookingId,
+    });
+
+  }, [bookingData, bookingLoading]);
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
@@ -217,6 +243,11 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ navigation, route
             clearToken();
             navigation.navigate('Login');
           }}
+          onDeleteSuccess={() => {
+            dispatch(resetBooking());
+            clearToken();
+            navigation.navigate('Login');
+          }}
           onEditProfile={() => navigation.navigate('EditProfile')}
           onHelpSupport={() => navigation.navigate('HelpSupport')}
           onLanguage={() => navigation.navigate('Language')}
@@ -225,13 +256,10 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ navigation, route
         <>
           <StatusBar barStyle="light-content" backgroundColor={Colors.secondary} />
 
-          {/* Top Header */}
-          <View style={styles.header}>
-            <View>
-              <Text style={styles.headerGreeting}>Hello, Customer 👋</Text>
-              <Text style={styles.headerSub}>Where are you sending today?</Text>
-            </View>
-          </View>
+          <AppHeader
+            name={`${customerName} 👋`}
+            subtitle="Where are you sending today?"
+          />
 
           {/* Scrollable Content */}
           <ScrollView
@@ -251,8 +279,8 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ navigation, route
                     currentPickup: pickup,
                     currentDropoff: dropoff,
                     vehicleType: selectedVehicle,
-                    pickupLat:  pickupLat  ?? undefined,
-                    pickupLng:  pickupLng  ?? undefined,
+                    pickupLat: pickupLat ?? undefined,
+                    pickupLng: pickupLng ?? undefined,
                     dropoffLat: dropoffLat ?? undefined,
                     dropoffLng: dropoffLng ?? undefined,
                   })}
@@ -280,8 +308,8 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ navigation, route
                     currentPickup: pickup,
                     currentDropoff: dropoff,
                     vehicleType: selectedVehicle,
-                    pickupLat:  pickupLat  ?? undefined,
-                    pickupLng:  pickupLng  ?? undefined,
+                    pickupLat: pickupLat ?? undefined,
+                    pickupLng: pickupLng ?? undefined,
                     dropoffLat: dropoffLat ?? undefined,
                     dropoffLng: dropoffLng ?? undefined,
                   })}
@@ -445,9 +473,8 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ navigation, route
               disabled={!isBookingReady || bookingLoading}
               onPress={handleBookNow}>
               {bookingLoading
-                ? <ActivityIndicator color={Colors.white} size="small" />
-                : <Text style={styles.bookBtnText}>Book Now →</Text>
-              }
+                ? <ActivityIndicator color="#fff" />
+                : <Text style={styles.bookBtnText}> Book Now →</Text>}
             </TouchableOpacity>
             {bookingError ? (
               <Text style={styles.bookingError}>{bookingError}</Text>
@@ -467,14 +494,44 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ navigation, route
             onPress={() => setActiveTab(tab.name)}
             activeOpacity={0.7}>
             {tab.name === 'Home'
-              ? <Ionicons name="home-outline" size={22} color={activeTab === 'Home' ? Colors.secondary : Colors.textGray} />
+              ? <Image
+                source={require('../../assets/icons/riderHome.png')}
+                style={{
+                  width: 22,
+                  height: 22,
+                  tintColor: activeTab === 'Home' ? Colors.primary : Colors.textGray,
+                  resizeMode: 'contain'
+                }}
+              />
               : tab.name === 'Orders'
-                ? <MaterialCommunityIcons name="package-variant-closed" size={22} color={activeTab === 'Orders' ? Colors.secondary : Colors.textGray} />
+                ? <Image
+                  source={require('../../assets/icons/orders.png')}
+                  style={{
+                    width: 22,
+                    height: 22,
+                    tintColor: activeTab === 'Orders' ? Colors.primary : Colors.textGray,
+                    resizeMode: 'contain'
+                  }}
+                />
                 : tab.name === 'Alerts'
-                  ? <MaterialCommunityIcons name="bell-alert-outline" size={22} color={activeTab === 'Alerts' ? Colors.secondary : Colors.textGray} />
-                  : tab.name === 'Profile'
-                    ? <Ionicons name="person-circle-outline" size={22} color={activeTab === 'Profile' ? Colors.secondary : Colors.textGray} />
-                    : <Text style={styles.tabEmoji}>{tab.emoji}</Text>}
+                  ? <Image
+                    source={require('../../assets/icons/notifications.png')}
+                    style={{
+                      width: 22,
+                      height: 22,
+                      tintColor: activeTab === 'Alerts' ? Colors.primary : Colors.textGray,
+                      resizeMode: 'contain'
+                    }}
+                  />
+                  : <Image
+                    source={require('../../assets/icons/person.png')}
+                    style={{
+                      width: 22,
+                      height: 22,
+                      tintColor: activeTab === 'Profile' ? Colors.primary : Colors.textGray,
+                      resizeMode: 'contain'
+                    }}
+                  />}
             <Text style={[
               styles.tabLabel,
               activeTab === tab.name && styles.tabLabelActive,
@@ -561,23 +618,6 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: Colors.background,
-  },
-
-  // Header
-  header: {
-    backgroundColor: Colors.secondary,
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-  },
-  headerGreeting: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: Colors.white,
-  },
-  headerSub: {
-    fontSize: 13,
-    color: 'rgba(255,255,255,0.75)',
-    marginTop: 2,
   },
 
   // Scroll

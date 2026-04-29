@@ -4,306 +4,278 @@ import {
   StyleSheet,
   StatusBar,
   TouchableOpacity,
+  Linking,
+  Image,
 } from 'react-native';
 import { Text } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../navigation/AppNavigator';
 import { Colors } from '../../theme/theme';
+import { useSelector } from 'react-redux';
+import type { RootState } from '../../redux/store';
 
 type DeliveringParcelScreenProps = {
-  navigation: NativeStackNavigationProp<RootStackParamList, 'DeliveringParcel'>;
+  navigation: NativeStackNavigationProp<
+    RootStackParamList,
+    'DeliveringParcel'
+  >;
 };
 
+const formatTime = (dateString?: string) => {
+  if (!dateString) return '';
+  const date = new Date(dateString);
+
+  return date.toLocaleTimeString('en-IN', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+  });
+};
+
+
+const DeliveringParcelScreen: React.FC<
+  DeliveringParcelScreenProps
+> = ({ navigation }) => {
+  const booking    = useSelector((state: RootState) => state.updateBookingStatus.booking);
+  const etaMinutes = useSelector((state: RootState) => state.updateBookingStatus.etaMinutes);
+
+  
 const PROGRESS_STEPS = [
-  { label: 'Order Accepted', time: '10:12 AM', done: true, active: false },
-  { label: 'Picked Up from Customer', time: '10:24 AM', done: true, active: false },
-  { label: 'On the Way to Drop-off', time: 'Now', done: false, active: true },
-  { label: 'Delivered', time: '', done: false, active: false },
+  {
+    label: 'Order Accepted',
+    time: formatTime(booking?.createdAt),
+    done: true,
+    active: false,
+  },
+  {
+    label: 'Picked Up from Customer',
+    time: formatTime(booking?.updatedAt),
+    done: true,
+    active: false,
+  },
+  {
+    label: 'On the Way to Drop-off',
+    time: 'Now',
+    done: false,
+    active: true,
+  },
+  {
+    label: 'Delivered',
+    time: '',
+    done: false,
+    active: false,
+  },
 ];
 
-const MockMap: React.FC = () => (
-  <View style={map.container}>
-    {/* Grid — horizontal */}
-    {[0.18, 0.36, 0.54, 0.72, 0.88].map((p, i) => (
-      <View key={`h${i}`} style={[map.hLine, { top: `${p * 100}%` as any }]} />
-    ))}
-    {/* Grid — vertical */}
-    {[0.18, 0.34, 0.52, 0.68, 0.84].map((p, i) => (
-      <View key={`v${i}`} style={[map.vLine, { left: `${p * 100}%` as any }]} />
-    ))}
+  const senderName = booking?.userName ?? 'Rahim';
+  const senderPhone = booking?.userPhone ?? '9999999999';
 
-    {/* Block fills */}
-    <View style={map.blockBlue} />
-    <View style={map.blockGray1} />
-    <View style={map.blockGray2} />
+  const getInitials = (name?: string) => {
+    return name
+      ? name
+        .split(' ')
+        .map(n => n[0])
+        .join('')
+        .toUpperCase()
+        .slice(0, 2)
+      : '??';
+  };
 
-    {/* Route — horizontal then vertical */}
-    <View style={map.routeH} />
-    <View style={map.routeV} />
+  const handleNavigate = () => {
+    if (booking?.dropoffLocation?.coordinates) {
+      const { lat, lng } = booking.dropoffLocation.coordinates;
+      Linking.openURL(
+        `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`
+      );
+    }
+  };
 
-    {/* Rider marker */}
-    <View style={map.riderMarker}>
-      <Text style={map.riderIcon}>▶</Text>
-    </View>
+  const handleCall = (phone?: string) => {
+    if (phone) {
+      Linking.openURL(`tel:${phone}`);
+    }
+  };
 
-    {/* Drop-off marker */}
-    <View style={map.dropoffWrapper}>
-      <View style={map.dropoffLabel}>
-        <Text style={map.dropoffLabelText}>Drop-off</Text>
-      </View>
-      <View style={map.dropoffDot} />
-    </View>
+  const handleChat = () => {
+    navigation.navigate('RiderChat', {
+      customerName: senderName,
+      bookingNumber: `BK-${booking?.bookingNumber ?? ''}`,
+      bookingStatus: 'Delivering Parcel',
+      customerPhone: senderPhone,
+      bookingId: booking?._id,
+    });
+  };
 
-    {/* ETA card */}
-    <View style={map.etaCard}>
-      <Text style={map.etaTime}>12 min</Text>
-      <Text style={map.etaDist}>3.2 km</Text>
-    </View>
-
-    {/* Locate button */}
-    <View style={map.locateBtn}>
-      <Text style={map.locateIcon}>◎</Text>
-    </View>
-  </View>
-);
-
-const DeliveringParcelScreen: React.FC<DeliveringParcelScreenProps> = ({ navigation }) => {
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+    <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="light-content" backgroundColor={Colors.secondary} />
 
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn} activeOpacity={0.7}>
-          <Text style={styles.backArrow}>{'←'}</Text>
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          style={styles.backBtn}>
+          <Image
+            source={require('../../assets/icons/arrow.png')}
+            style={styles.backArrow}
+          />
         </TouchableOpacity>
+
         <Text style={styles.headerTitle}>Delivering Parcel</Text>
+
         <View style={styles.inTransitBadge}>
           <Text style={styles.inTransitText}>In Transit</Text>
         </View>
       </View>
 
-      {/* Mock Map */}
-      <MockMap />
+      {/* Top Section */}
+      <View style={styles.etaSection}>
+        <View style={styles.navIconWrapper}>
+          <Image
+            source={require('../../assets/icons/near_me.png')}
+            style={styles.navIcon}
+          />
+        </View>
+
+        <Text style={styles.etaTime}>{etaMinutes != null ? `${etaMinutes} min` : '— min'} · 3.2 km</Text>
+        <Text style={styles.etaSub}>Estimated time to drop-off</Text>
+
+        <TouchableOpacity
+          style={styles.navigateBtn}
+          onPress={handleNavigate}>
+          <Image
+            source={require('../../assets/icons/navigation.png')}
+            style={styles.navigateBtnIcon}
+          />
+          <Text style={styles.navigateBtnText}>
+            Navigate in Google Maps
+          </Text>
+        </TouchableOpacity>
+
+        <View style={styles.addressRow}>
+          <Image
+            source={require('../../assets/icons/location_on.png')}
+            style={styles.addressPin}
+          />
+          <Text style={styles.addressText} numberOfLines={2} ellipsizeMode="tail">
+            {booking?.dropoffLocation?.address ?? ''}
+          </Text>
+        </View>
+      </View>
+      {/* 🔵 Sender (STATIC) */}
+      <View style={styles.customerRow}>
+        <View style={styles.avatar}>
+          <Text style={styles.avatarText}>
+            {getInitials(senderName)}
+          </Text>
+        </View>
+
+        <View style={styles.customerInfo}>
+          <Text style={styles.customerName}>{senderName}</Text>
+          <Text style={styles.customerMeta}>Sender</Text>
+        </View>
+
+        <View style={styles.actionBtns}>
+          <TouchableOpacity
+            style={styles.chatBtn}
+            onPress={handleChat}>
+            <Text style={styles.chatBtnText}>💬 Chat</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.callBtn}
+            onPress={() => handleCall(senderPhone)}>
+            <Text style={styles.callBtnText}>📞 Call</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* 🟢 Receiver (DYNAMIC) */}
+      <View style={styles.customerRow}>
+        <View style={styles.avatar}>
+          <Text style={styles.avatarText}>
+            {getInitials(booking?.receiverName)}
+          </Text>
+        </View>
+
+        <View style={styles.customerInfo}>
+          <Text style={styles.customerName}>
+            {booking?.receiverName ?? 'Receiver'}
+          </Text>
+          <Text style={styles.customerMeta}>Receiver</Text>
+        </View>
+
+        <View style={styles.actionBtns}>
+          <TouchableOpacity
+            style={styles.callBtn}
+            onPress={() => handleCall(booking?.receiverPhone)}>
+            <Text style={styles.callBtnText}>📞 Call</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
 
       {/* Bottom Panel */}
       <View style={styles.panel}>
         <Text style={styles.progressTitle}>Delivery Progress</Text>
 
-        {/* Progress Steps */}
-        <View style={styles.stepsList}>
+        <View>
           {PROGRESS_STEPS.map((step, index) => (
             <View key={index} style={styles.stepRow}>
               <View style={styles.stepIndicator}>
-                <View style={[
-                  styles.stepDot,
-                  step.done && styles.stepDotDone,
-                  step.active && styles.stepDotActive,
-                  !step.done && !step.active && styles.stepDotPending,
-                ]} />
+                <View
+                  style={[
+                    styles.stepDot,
+                    step.done && styles.stepDotDone,
+                    step.active && styles.stepDotActive,
+                    !step.done && !step.active &&
+                    styles.stepDotPending,
+                  ]}
+                />
                 {index < PROGRESS_STEPS.length - 1 && (
-                  <View style={[styles.stepLine, step.done && styles.stepLineDone]} />
+                  <View
+                    style={[
+                      styles.stepLine,
+                      step.done && styles.stepLineDone,
+                    ]}
+                  />
                 )}
               </View>
+
               <View style={styles.stepContent}>
-                <Text style={[
-                  styles.stepLabel,
-                  step.active && styles.stepLabelActive,
-                  !step.done && !step.active && styles.stepLabelPending,
-                ]}>
-                  {step.label}
-                </Text>
+                <Text style={styles.stepLabel}>{step.label}</Text>
                 {step.time ? (
-                  <Text style={[styles.stepTime, step.active && styles.stepTimeActive]}>
-                    {step.time}
-                  </Text>
+                  <Text style={styles.stepTime}>{step.time}</Text>
                 ) : null}
               </View>
             </View>
           ))}
         </View>
 
-        {/* Drop-off location */}
         <View style={styles.locationRow}>
           <View style={styles.locationDot} />
-          <View>
+          <View style={{ flex: 1 }}>
             <Text style={styles.locationLabel}>Drop-off Location</Text>
-            <Text style={styles.locationValue}>Park Street, Road 4, Kolkata</Text>
+            <Text style={styles.locationValue} numberOfLines={2} ellipsizeMode="tail">
+              {booking?.dropoffLocation?.address ?? ''}
+            </Text>
           </View>
         </View>
 
-        {/* Complete Delivery */}
         <TouchableOpacity
           style={styles.completeBtn}
-          activeOpacity={0.85}
           onPress={() => navigation.navigate('VerifyDeliveryOTP')}>
-          <Text style={styles.completeBtnText}>Complete Delivery</Text>
+          <Text style={styles.completeBtnText}>
+            Complete Delivery
+          </Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
   );
 };
 
-// ─── Mock map styles ───────────────────────────────────────────────────────────
-const map = StyleSheet.create({
-  container: {
-    maxHeight: '50%',
-    flex: 1,
-    backgroundColor: '#E8EFF5',
-    overflow: 'hidden',
-    position: 'relative',
-  },
-  hLine: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    height: 1,
-    backgroundColor: '#CBD5DC',
-  },
-  vLine: {
-    position: 'absolute',
-    top: 0,
-    bottom: 0,
-    width: 1,
-    backgroundColor: '#CBD5DC',
-  },
-  blockBlue: {
-    position: 'absolute',
-    top: '52%',
-    left: '2%',
-    width: '28%',
-    height: '35%',
-    backgroundColor: '#B0D4E8',
-    borderRadius: 4,
-  },
-  blockGray1: {
-    position: 'absolute',
-    top: '10%',
-    left: '35%',
-    width: '22%',
-    height: '28%',
-    backgroundColor: '#D5DDE3',
-    borderRadius: 4,
-  },
-  blockGray2: {
-    position: 'absolute',
-    top: '10%',
-    left: '62%',
-    width: '32%',
-    height: '28%',
-    backgroundColor: '#D5DDE3',
-    borderRadius: 4,
-  },
-  routeH: {
-    position: 'absolute',
-    top: '41%',
-    left: '18%',
-    width: '50%',
-    height: 4,
-    backgroundColor: Colors.primary,
-    borderRadius: 2,
-  },
-  routeV: {
-    position: 'absolute',
-    top: '41%',
-    left: '68%',
-    width: 4,
-    height: '26%',
-    backgroundColor: Colors.primary,
-    borderRadius: 2,
-  },
-  riderMarker: {
-    position: 'absolute',
-    top: '35%',
-    left: '13%',
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#2563EB',
-    alignItems: 'center',
-    justifyContent: 'center',
-    elevation: 4,
-  },
-  riderIcon: {
-    color: '#FFFFFF',
-    fontSize: 13,
-  },
-  dropoffWrapper: {
-    position: 'absolute',
-    top: '60%',
-    left: '62%',
-    alignItems: 'center',
-  },
-  dropoffLabel: {
-    backgroundColor: Colors.primary,
-    borderRadius: 6,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    marginBottom: 4,
-  },
-  dropoffLabelText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  dropoffDot: {
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    backgroundColor: Colors.primary,
-    borderWidth: 2,
-    borderColor: '#FFFFFF',
-  },
-  etaCard: {
-    position: 'absolute',
-    top: 12,
-    left: 12,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    alignItems: 'center',
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
-  },
-  etaTime: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: Colors.textDark,
-  },
-  etaDist: {
-    fontSize: 12,
-    color: Colors.textGray,
-    marginTop: 1,
-  },
-  locateBtn: {
-    position: 'absolute',
-    bottom: 12,
-    right: 12,
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#FFFFFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    elevation: 3,
-  },
-  locateIcon: {
-    fontSize: 18,
-    color: Colors.textGray,
-  },
-});
-
-// ─── Screen styles ─────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: Colors.white,
-  },
+  safeArea: { flex: 1, backgroundColor: Colors.white },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -312,163 +284,198 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     gap: 10,
   },
-  backBtn: {
-    width: 36,
-    height: 36,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+
+  backBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
   backArrow: {
-    fontSize: 22,
-    lineHeight: 22,
+    width: 20,
+    height: 20,
+    resizeMode: 'contain',
+    tintColor: '#fff',
+  },
+
+  headerTitle: {
+    flex: 0,
+    fontSize: 16,
     color: Colors.white,
     fontWeight: '700',
-    includeFontPadding: false,
   },
-  headerTitle: {
-    flex: 1,
-    fontSize: 17,
-    lineHeight: 22,
-    fontWeight: '800',
-    color: Colors.white,
-    includeFontPadding: false,
-  },
+
   inTransitBadge: {
     backgroundColor: Colors.primary,
-    borderRadius: 20,
-    paddingHorizontal: 12,
+    paddingHorizontal: 10,
     paddingVertical: 4,
-  },
-  inTransitText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: Colors.white,
+    borderRadius: 12,
   },
 
-  // Panel
-  panel: {
-    flex: 1,
-    backgroundColor: Colors.white,
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 16,
-    justifyContent: 'space-between',
-  },
-  progressTitle: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: Colors.textDark,
-    marginBottom: 12,
-  },
+  inTransitText: { color: '#fff', fontSize: 12 },
 
-  // Steps
-  stepsList: {
-    marginBottom: 4,
-  },
-  stepRow: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  stepIndicator: {
+  etaSection: {
+    backgroundColor: '#EEF2F7',
     alignItems: 'center',
-    width: 14,
-  },
-  stepDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    marginTop: 2,
-  },
-  stepDotDone: {
-    backgroundColor: '#22C55E',
-  },
-  stepDotActive: {
-    backgroundColor: Colors.primary,
-  },
-  stepDotPending: {
-    backgroundColor: '#D1D5DB',
-  },
-  stepLine: {
-    width: 2,
-    flex: 1,
-    minHeight: 18,
-    backgroundColor: '#D1D5DB',
-    marginVertical: 2,
-  },
-  stepLineDone: {
-    backgroundColor: '#22C55E',
-  },
-  stepContent: {
-    flex: 1,
-    paddingBottom: 14,
-  },
-  stepLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: Colors.textDark,
-  },
-  stepLabelActive: {
-    color: Colors.textDark,
-    fontWeight: '700',
-  },
-  stepLabelPending: {
-    color: Colors.textGray,
-    fontWeight: '400',
-  },
-  stepTime: {
-    fontSize: 12,
-    color: Colors.textGray,
-    marginTop: 1,
-  },
-  stepTimeActive: {
-    color: Colors.primary,
-    fontWeight: '600',
+    padding: 20,
   },
 
-  // Location
-  locationRow: {
+  navIconWrapper: { marginBottom: 10 },
+
+  navIcon: { width: 30, height: 30, tintColor: Colors.secondary },
+
+  etaTime: { fontSize: 18, fontWeight: '700' },
+
+  etaSub: { fontSize: 12, color: 'gray', marginBottom: 10 },
+
+  navigateBtn: {
     flexDirection: 'row',
+    backgroundColor: '#3385F5',
+    borderRadius: 15,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
     alignItems: 'center',
-    gap: 10,
-    backgroundColor: Colors.background,
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    marginBottom: 4,
+    justifyContent: 'center',
+    width: '100%',
+    marginBottom: 16,
+    elevation: 3,
   },
+
+  navigateBtnIcon: {
+    width: 18,
+    height: 18,
+    tintColor: '#fff',
+  },
+
+  navigateBtnText: {
+    color: '#fff',
+    marginLeft: 6,
+  },
+
+  addressRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    width: '100%',
+    gap: 6,
+    marginTop: 30,
+    marginBottom: 30,
+  },
+
+  addressPin: { width: 16, height: 16, marginTop: 2, flexShrink: 0 },
+
+  addressText: { flex: 1, marginLeft: 5, fontSize: 13, color: Colors.textDark },
+
+  panel: { flex: 1, padding: 16 },
+
+  progressTitle: { fontWeight: '700', marginBottom: 10 },
+
+  stepRow: { flexDirection: 'row', marginBottom: 10 },
+
+  stepIndicator: { alignItems: 'center', marginRight: 10 },
+
+  stepDot: { width: 10, height: 10, borderRadius: 5 },
+
+  stepDotDone: { backgroundColor: '#21A659' },
+
+  stepDotActive: { backgroundColor: '#F75522' },
+
+  stepDotPending: { backgroundColor: '#ccc' },
+
+  stepLine: { width: 2, height: 20, backgroundColor: '#ccc' },
+
+  stepLineDone: { backgroundColor: 'green' },
+
+  stepContent: {},
+
+  stepLabel: {},
+
+  stepTime: { fontSize: 12, color: 'gray' },
+
+  locationRow: { flexDirection: 'row', marginTop: 10 },
+
   locationDot: {
     width: 10,
     height: 10,
-    borderRadius: 5,
-    backgroundColor: Colors.primary,
-  },
-  locationLabel: {
-    fontSize: 11,
-    color: Colors.textGray,
-    marginBottom: 2,
-  },
-  locationValue: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: Colors.textDark,
+    backgroundColor: '#F75522',
+    borderRadius: 10,
+    margin:5,
   },
 
-  // Complete button
+  locationLabel: { fontSize: 12 },
+
+  locationValue: { fontWeight: '600' },
+
   completeBtn: {
-    backgroundColor: '#22C55E',
-    borderRadius: 12,
-    paddingVertical: 16,
+    marginTop: 20,
+    backgroundColor: '#21A659',
+    padding: 14,
+    borderRadius: 10,
     alignItems: 'center',
-    elevation: 3,
-    shadowColor: '#22C55E',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
   },
-  completeBtnText: {
-    color: Colors.white,
-    fontSize: 16,
+
+  completeBtnText: { color: '#fff', fontWeight: '700' },
+
+  customerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+  },
+
+  avatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: Colors.secondary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  avatarText: {
+    color: '#fff',
     fontWeight: '800',
+  },
+
+  customerInfo: {
+    flex: 1,
+    marginLeft: 10,
+  },
+
+  customerName: {
+    fontWeight: '700',
+    fontSize: 14,
+  },
+
+  customerMeta: {
+    fontSize: 12,
+    color: 'gray',
+  },
+
+  actionBtns: {
+    flexDirection: 'row',
+    gap: 6,
+  },
+
+  chatBtn: {
+    backgroundColor: '#1E293B',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+
+  chatBtnText: {
+    color: '#fff',
+    fontSize: 12,
+  },
+
+  callBtn: {
+    backgroundColor: '#22B14C',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+
+  callBtnText: {
+    color: '#fff',
+    fontSize: 12,
   },
 });
 

@@ -37,9 +37,9 @@ export async function getFCMToken(): Promise<string | null> {
 export function registerForegroundListener(
   onMessage?: (remoteMessage: any) => void
 ): () => void {
-  return messaging().onMessage(async remoteMessage => {
+  return messaging().onMessage(remoteMessage => {
     console.log('[FCM] Foreground message:', JSON.stringify(remoteMessage, null, 2));
-    onMessage?.(remoteMessage);
+    if (onMessage) onMessage(remoteMessage);
   });
 }
 

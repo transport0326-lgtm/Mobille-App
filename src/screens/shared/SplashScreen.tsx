@@ -11,6 +11,7 @@ import { Text } from 'react-native-paper';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../navigation/AppNavigator';
 import { Colors } from '../../theme/theme';
+import { loadToken, loadRole } from '../../utils/tokenStorage';
 
 const { width } = Dimensions.get('window');
 
@@ -55,8 +56,17 @@ const SplashScreen: React.FC<SplashScreenProps> = ({ navigation }) => {
     });
 
     // Navigate to Login after 2.5 seconds
-    const timer = setTimeout(() => {
-      navigation.replace('Login');
+    const timer = setTimeout(async () => {
+      const [token, role] = await Promise.all([loadToken(), loadRole()]);
+      if (token && role) {
+        if (role === 'rider') {
+          navigation.replace('RiderDashboard');
+        } else {
+          navigation.replace('CustomerDashboard');
+        }
+      } else {
+        navigation.replace('Login');
+      }
     }, 2500);
 
     return () => clearTimeout(timer);

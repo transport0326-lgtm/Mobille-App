@@ -6,21 +6,21 @@ import {
   TouchableOpacity,
   ScrollView,
   TextInput as RNTextInput,
-  Dimensions,
+  Image,
 } from 'react-native';
 import { Text } from 'react-native-paper';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { RouteProp } from '@react-navigation/native';
 import { Colors } from '../../theme/theme';
 import { RootStackParamList } from '../../navigation/AppNavigator';
 import { useDispatch } from 'react-redux';
 import { submitRating } from '../../redux/sagas/rating/ratingAction';
 
-const { width } = Dimensions.get('window');
-
 type Props = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'RateDelivery'>;
+  route: RouteProp<RootStackParamList, 'RateDelivery'>;
 };
 
 const TAGS = ['Fast Delivery', 'Polite Rider', 'Safe Handling', 'On Time', 'Good Communication'];
@@ -33,8 +33,16 @@ const RATING_LABELS: Record<number, string> = {
   5: 'Excellent!',
 };
 
-const RateDeliveryScreen: React.FC<Props> = ({ navigation }) => {
+const getInitials = (name?: string) => {
+  if (!name) return '?';
+  const parts = name.trim().split(' ').filter(Boolean);
+  if (parts.length === 1) return parts[0][0].toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+};
+
+const RateDeliveryScreen: React.FC<Props> = ({ navigation, route }) => {
   const dispatch = useDispatch();
+  const { bookingId, riderName, vehicleNumber, vehicleType, bookingNumber, total } = route.params;
   const [rating, setRating] = useState(4);
   const [selectedTags, setSelectedTags] = useState<string[]>(['Fast Delivery']);
   const [comment, setComment] = useState('');
@@ -46,17 +54,8 @@ const RateDeliveryScreen: React.FC<Props> = ({ navigation }) => {
   };
 
   const handleSubmit = () => {
-    dispatch(
-      submitRating({
-        bookingId: "69e7821d81a027aa67f791b5",
-        stars: rating,
-        tags: selectedTags,
-        comment: comment,
-      })
-    );
-
-    // optional: navigate after API success (better)
-    navigation.navigate('CustomerDashboard', {});
+    dispatch(submitRating({ bookingId, stars: rating, tags: selectedTags, comment }));
+    navigation.reset({ index: 0, routes: [{ name: 'CustomerDashboard' }] });
   };
 
   return (
@@ -64,12 +63,14 @@ const RateDeliveryScreen: React.FC<Props> = ({ navigation }) => {
       <StatusBar barStyle="light-content" backgroundColor={Colors.secondary} />
 
       {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <Text style={styles.backArrow}>←</Text>
-        </TouchableOpacity>
+       <View style={styles.header}>
+              <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+                <Image
+                  source={require('../../assets/icons/arrow.png')}
+                  style={styles.backArrow}
+                />
+              </TouchableOpacity>
         <Text style={styles.headerTitle}>Rate Your Delivery</Text>
-        <View style={{ width: 40 }} />
       </View>
 
       <ScrollView
@@ -87,16 +88,22 @@ const RateDeliveryScreen: React.FC<Props> = ({ navigation }) => {
 
         {/* Delivered Title */}
         <Text style={styles.deliveredTitle}>Delivered Successfully!</Text>
-        <Text style={styles.deliveredSub}>BK-1042 · ₹55 · Bike</Text>
+        <Text style={styles.deliveredSub}>
+          {[bookingNumber, total != null ? `₹${Number(total).toFixed(0)}` : null, vehicleType]
+            .filter(Boolean)
+            .join(' · ')}
+        </Text>
 
         {/* Rider Card */}
         <View style={styles.riderCard}>
           <View style={styles.riderAvatar}>
-            <Text style={styles.riderAvatarText}>JH</Text>
+            <Text style={styles.riderAvatarText}>{getInitials(riderName)}</Text>
           </View>
           <View>
-            <Text style={styles.riderName}>Jahid Hasan</Text>
-            <Text style={styles.riderMeta}>Bike · WB-02-AB-3456</Text>
+            <Text style={styles.riderName}>{riderName || '—'}</Text>
+            <Text style={styles.riderMeta}>
+              {[vehicleType, vehicleNumber].filter(Boolean).join(' · ') || '—'}
+            </Text>
           </View>
         </View>
 
@@ -168,7 +175,7 @@ const RateDeliveryScreen: React.FC<Props> = ({ navigation }) => {
         {/* Skip */}
         <TouchableOpacity
           style={styles.skipBtn}
-          onPress={() => navigation.navigate('CustomerDashboard', {})}
+          onPress={() => navigation.reset({ index: 0, routes: [{ name: 'CustomerDashboard' }] })}
           activeOpacity={0.7}>
           <Text style={styles.skipBtnText}>Skip for now</Text>
         </TouchableOpacity>
@@ -181,10 +188,34 @@ const RateDeliveryScreen: React.FC<Props> = ({ navigation }) => {
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#F5F5F0' },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, backgroundColor: Colors.secondary },
-  backBtn: { width: 40, height: 40, justifyContent: 'center' },
-  backArrow: { fontSize: 22, lineHeight: 22, color: Colors.white, fontWeight: '600', includeFontPadding: false },
-  headerTitle: { fontSize: 17, lineHeight: 22, fontWeight: '700', color: Colors.white, includeFontPadding: false },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.secondary,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+
+  backBtn: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  backArrow: {
+    width: 20,
+    height: 20,
+    resizeMode: 'contain',
+    tintColor: '#fff',
+  },
+
+  headerTitle: {
+    fontSize: 18,
+    color: Colors.white,
+    fontWeight: '700',
+    marginLeft: 12,
+  },
 
   scrollContent: { paddingHorizontal: 20, paddingTop: 28, paddingBottom: 20, alignItems: 'center' },
 

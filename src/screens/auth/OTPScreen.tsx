@@ -17,7 +17,6 @@ import { RouteProp } from '@react-navigation/native';
 import { useDispatch, useSelector } from 'react-redux';
 import { RootStackParamList } from '../../navigation/AppNavigator';
 import { Colors } from '../../theme/theme';
-import { TEST_OTP } from '../../redux/sagas/auth/authSaga';
 import { sendOtp, verifyOtp } from '../../redux/sagas/auth/authAction';
 import { getFCMToken } from '../../utils/fcm';
 import { resetVerifyOtp } from '../../redux/slices/authSlice';
@@ -25,7 +24,6 @@ import type { RootState, AppDispatch } from '../../redux/store';
 
 const { width } = Dimensions.get('window');
 const OTP_LENGTH = 4;
-const TEST_PHONE = '9999999999';
 
 type OTPScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'OTP'>;
@@ -120,8 +118,8 @@ const OTPScreen: React.FC<OTPScreenProps> = ({ navigation, route }) => {
     const otpValue = otp.join('');
     if (otpValue.length < OTP_LENGTH) return;
     const fcmToken = await getFCMToken();
-    console.log('otp verifing fcm',fcmToken);
-    dispatch(verifyOtp({ phone: phoneNumber, otp: storedOtp ?? otpValue, fcmToken }));
+    console.log('otp verifing fcm', fcmToken);
+    dispatch(verifyOtp({ phone: phoneNumber, otp: storedOtp || otpValue, fcmToken }));
   };
 
   const isComplete = otp.every(d => d !== '');
@@ -139,10 +137,13 @@ const OTPScreen: React.FC<OTPScreenProps> = ({ navigation, route }) => {
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <Text style={styles.backArrow}>←</Text>
+          <Image
+            source={require('../../assets/icons/arrow.png')}
+            style={styles.backArrow}
+          />
         </TouchableOpacity>
+
         <Text style={styles.headerTitle}>Verify OTP</Text>
-        <View style={{ width: 40 }} />
       </View>
 
       <KeyboardAvoidingView
@@ -160,7 +161,7 @@ const OTPScreen: React.FC<OTPScreenProps> = ({ navigation, route }) => {
           {/* Title */}
           <Text style={styles.title}>Enter Verification Code</Text>
           <Text style={styles.subtitle}>
-            We've sent a 6-digit code to{'\n'}
+            We've sent a 4-digit code to{'\n'}
             <Text style={styles.phoneText}>+91 {phoneNumber}</Text>
           </Text>
 
@@ -190,13 +191,6 @@ const OTPScreen: React.FC<OTPScreenProps> = ({ navigation, route }) => {
               />
             ))}
           </View>
-
-          {/* Test OTP hint — only shown for the test phone number */}
-          {phoneNumber === TEST_PHONE && (
-            <View style={styles.testHint}>
-              <Text style={styles.testHintText}>Test OTP: {TEST_OTP}</Text>
-            </View>
-          )}
 
           {/* Resend Timer */}
           <View style={styles.resendRow}>
@@ -237,31 +231,30 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.borderGray,
     backgroundColor: Colors.secondary,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
   },
+
   backBtn: {
     width: 40,
     height: 40,
+    alignItems: 'center',
     justifyContent: 'center',
   },
+
   backArrow: {
-    fontSize: 22,
-    lineHeight: 22,
-    color: Colors.white,
-    fontWeight: '600',
-    includeFontPadding: false,
+    width: 20,
+    height: 20,
+    resizeMode: 'contain',
+    tintColor: '#fff',
   },
+
   headerTitle: {
-    fontSize: 17,
-    lineHeight: 22,
-    fontWeight: '700',
+    fontSize: 18,
     color: Colors.white,
-    includeFontPadding: false,
+    fontWeight: '700',
+    marginLeft: 12,
   },
 
   // Content
@@ -372,24 +365,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     letterSpacing: 0.5,
-  },
-
-  // Test hint
-  testHint: {
-    alignItems: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    backgroundColor: '#FFF8E1',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#FFE082',
-    marginBottom: 16,
-  },
-  testHintText: {
-    fontSize: 12,
-    color: '#795548',
-    fontWeight: '600',
-    letterSpacing: 0.3,
   },
 });
 

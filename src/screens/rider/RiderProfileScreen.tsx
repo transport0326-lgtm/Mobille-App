@@ -10,10 +10,15 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  Alert,
+  Linking,
+  Image,
 } from 'react-native';
 import { Text } from 'react-native-paper';
-import { useSelector } from 'react-redux';
-import type { RootState } from '../../redux/store';
+import { useSelector, useDispatch } from 'react-redux';
+import type { RootState, AppDispatch } from '../../redux/store';
+import { deleteAccount } from '../../redux/sagas/deleteAccountAction';
+import { resetDeleteAccount } from '../../redux/slices/deleteAccountSlice';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../navigation/AppNavigator';
 import { Colors } from '../../theme/theme';
@@ -25,40 +30,88 @@ const getInitials = (name: string) => {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 };
 
+const formatEarnings = (amount: number): string => {
+  if (amount >= 1000) return `₹${(amount / 1000).toFixed(1)}K`;
+  return `₹${amount}`;
+};
+
 type Props = {
   navigation: NativeStackNavigationProp<RootStackParamList>;
 };
 
 type MenuItem = {
   id: string;
-  icon: string;
+  icon: any;
   label: string;
-  danger?: boolean;
 };
 
 const MENU_ITEMS: MenuItem[] = [
-  { id: 'edit', icon: '✏️', label: 'Edit Profile' },
-  { id: 'vehicle', icon: '🚲', label: 'Vehicle Details' },
-  { id: 'docs', icon: '📋', label: 'Documents & KYC' },
-  { id: 'bank', icon: '🏦', label: 'Bank & Payment Details' },
-  { id: 'delete', icon: '🗑️', label: 'Delete Account', danger: true },
-  { id: 'help', icon: '❓', label: 'Help & Support' },
+  {
+    id: 'edit',
+    icon: require('../../assets/icons/edit.png'),
+    label: 'Edit Profile',
+  },
+  // {
+  //   id: 'vehicle',
+  //   icon: require('../../assets/icons/vehicle.png'),
+  //   label: 'Vehicle Details',
+  // },
+  // {
+  //   id: 'docs',
+  //   icon: require('../../assets/icons/documents.png'),
+  //   label: 'Documents & KYC',
+  // },
+  {
+    id: 'bank',
+    icon: require('../../assets/icons/bank.png'),
+    label: 'Bank & Payment Details',
+  },
+  {
+    id: 'delete',
+    icon: require('../../assets/icons/delete.png'),
+    label: 'Delete Account',
+  },
+  {
+    id: 'help',
+    icon: require('../../assets/icons/help.png'),
+    label: 'Help & Support',
+  },
 ];
 
 const RiderProfileScreen: React.FC<Props> = ({ navigation }) => {
+  const dispatch = useDispatch<AppDispatch>();
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteReason, setDeleteReason] = useState('');
 
   const { data, loading } = useSelector((state: RootState) => state.riderProfile);
   const rider = data?.rider;
+  const stats = data?.stats;
+
+  const { loading: deleting, success: deleteSuccess, error: deleteError } =
+    useSelector((state: RootState) => state.deleteAccount);
+
+  React.useEffect(() => {
+    if (deleteSuccess) {
+      dispatch(resetDeleteAccount());
+      clearToken();
+      navigation.navigate('Login');
+    }
+  }, [deleteSuccess]);
+
+  React.useEffect(() => {
+    if (deleteError) {
+      Alert.alert('Error', deleteError);
+      dispatch(resetDeleteAccount());
+    }
+  }, [deleteError]);
 
   const handleMenuPress = (id: string) => {
-    if (id === 'edit')    navigation.navigate('RiderEditProfile');
-    if (id === 'vehicle') navigation.navigate('VehicleDetails');
-    if (id === 'docs')    navigation.navigate('DocumentsKYC');
-    if (id === 'help')    navigation.navigate('HelpSupport');
-    if (id === 'bank')    navigation.navigate('RiderBankPayment');
-    if (id === 'delete')  setShowDeleteModal(true);
+    if (id === 'edit') navigation.navigate('RiderEditProfile');
+    // if (id === 'vehicle') navigation.navigate('VehicleDetails');
+    // if (id === 'docs') navigation.navigate('DocumentsKYC');
+    if (id === 'help') navigation.navigate('HelpSupport');
+    if (id === 'bank') navigation.navigate('RiderBankPayment');
+    if (id === 'delete') setShowDeleteModal(true);
   };
 
   return (
@@ -75,7 +128,12 @@ const RiderProfileScreen: React.FC<Props> = ({ navigation }) => {
                 <Text style={styles.avatarText}>{rider?.name ? getInitials(rider.name) : '?'}</Text>
               </View>
               <Text style={styles.name}>{rider?.name || '—'}</Text>
-              <Text style={styles.phone}>{rider?.phone ? `+91 ${rider.phone}` : '—'}</Text>
+              <TouchableOpacity
+                activeOpacity={0.7}
+                disabled={!rider?.phone}
+                onPress={() => rider?.phone && Linking.openURL(`tel:${rider.phone}`)}>
+                <Text style={styles.phone}>{rider?.phone ? `+91 ${rider.phone}` : '—'}</Text>
+              </TouchableOpacity>
               <View style={styles.ratingBadge}>
                 <Text style={styles.ratingText}>★ 4.8 Rating</Text>
               </View>
@@ -86,17 +144,21 @@ const RiderProfileScreen: React.FC<Props> = ({ navigation }) => {
         {/* Stats Row */}
         <View style={styles.statsRow}>
           <View style={styles.statItem}>
-            <Text style={styles.statValue}>342</Text>
+            <Text style={styles.statValue}>{stats?.totalTrips ?? '—'}</Text>
             <Text style={styles.statLabel}>Total Trips</Text>
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statItem}>
-            <Text style={styles.statValue}>₹18.5K</Text>
+            <Text style={styles.statValue}>
+              {stats?.lifetimeEarnings != null ? formatEarnings(stats.lifetimeEarnings) : '—'}
+            </Text>
             <Text style={styles.statLabel}>Lifetime Earn</Text>
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statItem}>
-            <Text style={styles.statValue}>98%</Text>
+            <Text style={styles.statValue}>
+              {stats?.completionRate != null ? `${stats.completionRate}%` : '—'}
+            </Text>
             <Text style={styles.statLabel}>Completion</Text>
           </View>
         </View>
@@ -106,11 +168,13 @@ const RiderProfileScreen: React.FC<Props> = ({ navigation }) => {
           <Text style={styles.vehicleTitle}>🚲  Vehicle Details</Text>
           <View style={styles.vehicleRow}>
             <Text style={styles.vehicleKey}>Type</Text>
-            <Text style={styles.vehicleValue}>Bike</Text>
+            <Text style={styles.vehicleValue}>
+              {rider?.vehicleType ? rider.vehicleType.charAt(0).toUpperCase() + rider.vehicleType.slice(1) : '—'}
+            </Text>
           </View>
           <View style={styles.vehicleRow}>
             <Text style={styles.vehicleKey}>Registration</Text>
-            <Text style={styles.vehicleValue}>WB-02-AB-3456</Text>
+            <Text style={styles.vehicleValue}>{rider?.vehicleNumber ?? '—'}</Text>
           </View>
         </View>
 
@@ -125,8 +189,8 @@ const RiderProfileScreen: React.FC<Props> = ({ navigation }) => {
               ]}
               onPress={() => handleMenuPress(item.id)}
               activeOpacity={0.7}>
-              <Text style={styles.menuIcon}>{item.icon}</Text>
-              <Text style={[styles.menuLabel, item.danger && styles.menuLabelDanger]}>
+              <Image source={item.icon} style={styles.menuIcon} />
+              <Text style={[styles.menuLabel]}>
                 {item.label}
               </Text>
               <Text style={styles.chevron}>{'›'}</Text>
@@ -154,63 +218,70 @@ const RiderProfileScreen: React.FC<Props> = ({ navigation }) => {
         <KeyboardAvoidingView
           style={{ flex: 1 }}
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalCard}>
 
-            {/* Warning icon */}
-            <View style={styles.modalIconCircle}>
-              <Text style={styles.modalIconEmoji}>⚠️</Text>
+              {/* Warning icon */}
+              <View style={styles.modalIconCircle}>
+                <Text style={styles.modalIconEmoji}>⚠️</Text>
+              </View>
+
+              <Text style={styles.modalTitle}>Delete Account?</Text>
+              <Text style={styles.modalDesc}>This action is permanent and cannot be undone.</Text>
+
+              {/* Bullet list */}
+              <View style={styles.bulletList}>
+                {[
+                  'All your trip history & earnings data',
+                  'Pending payouts (₹2,450)',
+                  'Your verified rider status',
+                  'Ratings & reviews (4.8 ★)',
+                ].map((item, i) => (
+                  <View key={i} style={styles.bulletRow}>
+                    <Text style={styles.bullet}>•</Text>
+                    <Text style={styles.bulletText}>{item}</Text>
+                  </View>
+                ))}
+              </View>
+
+              {/* Reason input */}
+              <Text style={styles.reasonLabel}>Reason for leaving (optional)</Text>
+              <TextInput
+                style={styles.reasonInput}
+                value={deleteReason}
+                onChangeText={setDeleteReason}
+                placeholder="Tell us why you're leaving..."
+                placeholderTextColor="#BBBBBB"
+                multiline
+                numberOfLines={3}
+                textAlignVertical="top"
+              />
+
+              {/* Buttons */}
+              <View style={styles.modalBtnRow}>
+                <TouchableOpacity
+                  style={styles.cancelBtn}
+                  activeOpacity={0.7}
+                  onPress={() => { setShowDeleteModal(false); setDeleteReason(''); }}>
+                  <Text style={styles.cancelBtnText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.deleteBtn}
+                  activeOpacity={0.85}
+                  disabled={deleting}
+                  onPress={() => {
+                    setShowDeleteModal(false);
+                    setDeleteReason('');
+                    dispatch(deleteAccount({ type: 'rider' }));
+                  }}>
+                  {deleting
+                    ? <ActivityIndicator size="small" color="#fff" />
+                    : <Text style={styles.deleteBtnText}>Delete</Text>}
+                </TouchableOpacity>
+              </View>
+
             </View>
-
-            <Text style={styles.modalTitle}>Delete Account?</Text>
-            <Text style={styles.modalDesc}>This action is permanent and cannot be undone.</Text>
-
-            {/* Bullet list */}
-            <View style={styles.bulletList}>
-              {[
-                'All your trip history & earnings data',
-                'Pending payouts (₹2,450)',
-                'Your verified rider status',
-                'Ratings & reviews (4.8 ★)',
-              ].map((item, i) => (
-                <View key={i} style={styles.bulletRow}>
-                  <Text style={styles.bullet}>•</Text>
-                  <Text style={styles.bulletText}>{item}</Text>
-                </View>
-              ))}
-            </View>
-
-            {/* Reason input */}
-            <Text style={styles.reasonLabel}>Reason for leaving (optional)</Text>
-            <TextInput
-              style={styles.reasonInput}
-              value={deleteReason}
-              onChangeText={setDeleteReason}
-              placeholder="Tell us why you're leaving..."
-              placeholderTextColor="#BBBBBB"
-              multiline
-              numberOfLines={3}
-              textAlignVertical="top"
-            />
-
-            {/* Buttons */}
-            <View style={styles.modalBtnRow}>
-              <TouchableOpacity
-                style={styles.cancelBtn}
-                activeOpacity={0.7}
-                onPress={() => { setShowDeleteModal(false); setDeleteReason(''); }}>
-                <Text style={styles.cancelBtnText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.deleteBtn}
-                activeOpacity={0.85}
-                onPress={() => { setShowDeleteModal(false); setDeleteReason(''); }}>
-                <Text style={styles.deleteBtnText}>Delete</Text>
-              </TouchableOpacity>
-            </View>
-
           </View>
-        </View>
         </KeyboardAvoidingView>
       </Modal>
 
@@ -239,7 +310,8 @@ const styles = StyleSheet.create({
   },
   avatarText: { fontSize: 26, fontWeight: '800', color: Colors.white },
   name: { fontSize: 18, fontWeight: '800', color: Colors.white, marginBottom: 4 },
-  phone: { fontSize: 13, color: 'rgba(255,255,255,0.7)', marginBottom: 10 },
+  phone: { fontSize: 13, color: 'rgba(255,255,255,0.7)', marginBottom: 4 },
+  email: { fontSize: 13, color: 'rgba(255,255,255,0.6)', marginBottom: 10, textDecorationLine: 'underline' },
   ratingBadge: {
     backgroundColor: Colors.primary,
     borderRadius: 20,
@@ -294,9 +366,13 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: Colors.borderGray,
   },
-  menuIcon: { fontSize: 18, marginRight: 14, width: 24, textAlign: 'center' },
+  menuIcon: {
+    width: 22,
+    height: 22,
+    resizeMode: 'contain',
+    marginRight:10,
+  },
   menuLabel: { flex: 1, fontSize: 15, color: Colors.textDark, fontWeight: '500' },
-  menuLabelDanger: { color: '#DC2626' },
   chevron: { fontSize: 20, color: Colors.textGray, lineHeight: 22 },
 
   // Logout
@@ -337,10 +413,10 @@ const styles = StyleSheet.create({
     fontSize: 13, color: Colors.textGray,
     textAlign: 'center', marginBottom: 16,
   },
-  bulletList:  { marginBottom: 18 },
-  bulletRow:   { flexDirection: 'row', gap: 8, marginBottom: 6 },
-  bullet:      { fontSize: 13, color: '#DC2626', lineHeight: 20 },
-  bulletText:  { flex: 1, fontSize: 13, color: Colors.textDark, lineHeight: 20 },
+  bulletList: { marginBottom: 18 },
+  bulletRow: { flexDirection: 'row', gap: 8, marginBottom: 6 },
+  bullet: { fontSize: 13, color: '#DC2626', lineHeight: 20 },
+  bulletText: { flex: 1, fontSize: 13, color: Colors.textDark, lineHeight: 20 },
   reasonLabel: { fontSize: 12, color: Colors.textGray, marginBottom: 6 },
   reasonInput: {
     borderWidth: 1, borderColor: Colors.borderGray, borderRadius: 10,

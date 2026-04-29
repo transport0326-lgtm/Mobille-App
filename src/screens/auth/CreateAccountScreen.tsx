@@ -9,6 +9,7 @@ import {
   ScrollView,
   TextInput as RNTextInput,
   Alert,
+  Image,
 } from 'react-native';
 import { Text } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -29,14 +30,14 @@ type CreateAccountScreenProps = {
   route: RouteProp<RootStackParamList, 'CreateAccount'>;
 };
 
-type UserRole    = 'customer' | 'rider';
+type UserRole = 'customer' | 'rider';
 type VehicleType = 'bike' | 'auto' | 'miniTruck' | 'truck';
 
 const VEHICLE_TYPES: { id: VehicleType; emoji: string; label: string }[] = [
-  { id: 'bike',      emoji: '🏍️', label: 'Bike'      },
-  { id: 'auto',      emoji: '🛺',  label: 'Auto'      },
-  { id: 'miniTruck', emoji: '🚚',  label: 'Mini Truck' },
-  { id: 'truck',     emoji: '🚛',  label: 'Truck'     },
+  { id: 'bike', emoji: '🏍️', label: 'Bike' },
+  { id: 'auto', emoji: '🛺', label: 'Auto' },
+  { id: 'miniTruck', emoji: '🚚', label: 'Mini Truck' },
+  { id: 'truck', emoji: '🚛', label: 'Truck' },
 ];
 
 
@@ -48,21 +49,21 @@ const CreateAccountScreen: React.FC<CreateAccountScreenProps> = ({ navigation, r
   const { loading, success, error } = useSelector((state: RootState) => state.register);
 
   // ── Basic fields
-  const [fullName, setFullName]     = useState('');
-  const [email, setEmail]           = useState('');
-  const [role, setRole]             = useState<UserRole>('customer');
+  const [fullName, setFullName] = useState('');
+  const [email, setEmail] = useState('');
+  const [role, setRole] = useState<UserRole>('customer');
 
   // ── Rider fields
-  const [vehicleType, setVehicleType]     = useState<VehicleType>('bike');
+  const [vehicleType, setVehicleType] = useState<VehicleType>('bike');
   const [vehicleNumber, setVehicleNumber] = useState('');
-  const [dlNumber, setDlNumber]           = useState('');
-  const [dlPhotoName, setDlPhotoName]     = useState<string | null>(null);
-  const [rcNumber, setRcNumber]           = useState('');
-  const [rcPhotoName, setRcPhotoName]     = useState<string | null>(null);
+  const [dlNumber, setDlNumber] = useState('');
+  const [dlPhotoName, setDlPhotoName] = useState<string | null>(null);
+  const [rcNumber, setRcNumber] = useState('');
+  const [rcPhotoName, setRcPhotoName] = useState<string | null>(null);
 
-  const [deliveryAddress, setDeliveryAddress]         = useState('');
+  const [deliveryAddress, setDeliveryAddress] = useState('');
   const [locationSuggestions, setLocationSuggestions] = useState<Suggestion[]>([]);
-  const [locationLoading, setLocationLoading]         = useState(false);
+  const [locationLoading, setLocationLoading] = useState(false);
   const debounceRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Mappls Places Search — 350 ms debounce
@@ -105,11 +106,11 @@ const CreateAccountScreen: React.FC<CreateAccountScreenProps> = ({ navigation, r
   // ── Photo picker — upload fires immediately after selection
   const applyAsset = (docType: 'dl' | 'rc', uri: string, name: string) => {
     if (docType === 'dl') setDlPhotoName(name);
-    else                  setRcPhotoName(name);
+    else setRcPhotoName(name);
 
     dispatch(uploadDocument({
-      phone:    phoneNumber,
-      fileUri:  uri,
+      phone: phoneNumber,
+      fileUri: uri,
       fileName: name,
       fileType: 'image/jpeg',
       docType,
@@ -149,26 +150,26 @@ const CreateAccountScreen: React.FC<CreateAccountScreenProps> = ({ navigation, r
 
     dispatch(
       register({
-        phone:    phoneNumber,
-        name:     fullName.trim(),
-        email:    email.trim(),
+        phone: phoneNumber,
+        name: fullName.trim(),
+        email: email.trim(),
         userType: role === 'customer' ? 'user' : 'rider',
         ...(role === 'rider' && {
           vehicleType,
-          vehicleNumber:   vehicleNumber.trim(),
-          dlNumber:        dlNumber.trim(),
-          rcNumber:        rcNumber.trim(),
-          deliveryState:   deliveryAddress.trim(),
+          vehicleNumber: vehicleNumber.trim(),
+          dlNumber: dlNumber.trim(),
+          rcNumber: rcNumber.trim(),
+          deliveryState: deliveryAddress.trim(),
         }),
       }),
     );
   };
 
   // ── Validation helpers
-  const isValidEmail         = (v: string) => /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(v);
+  const isValidEmail = (v: string) => /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(v);
   const isValidVehicleNumber = (v: string) => /^[A-Za-z]{2}-?\d{2}-?[A-Za-z]{0,2}-?\d{4}$/.test(v);
-  const isValidDL            = (v: string) => v.trim().length >= 6;
-  const isValidRC            = (v: string) => v.trim().length >= 6;
+  const isValidDL = (v: string) => v.trim().length >= 6;
+  const isValidRC = (v: string) => v.trim().length >= 6;
 
   const riderValid =
     isValidVehicleNumber(vehicleNumber) &&
@@ -190,9 +191,14 @@ const CreateAccountScreen: React.FC<CreateAccountScreenProps> = ({ navigation, r
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <Text style={styles.backArrow}>←</Text>
+          <Image
+            source={require('../../assets/icons/arrow.png')}
+            style={styles.backArrow}
+          />
         </TouchableOpacity>
+
         <Text style={styles.headerTitle}>Create Account</Text>
+
         <View style={{ width: 40 }} />
       </View>
 
@@ -440,17 +446,37 @@ const styles = StyleSheet.create({
 
   // Header
   header: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 16, paddingVertical: 12, backgroundColor: Colors.secondary,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.secondary,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
   },
-  backBtn:     { width: 40, height: 40, justifyContent: 'center' },
-  backArrow:   { fontSize: 22, lineHeight: 22, color: Colors.white, fontWeight: '600', includeFontPadding: false },
-  headerTitle: { fontSize: 17, lineHeight: 22, fontWeight: '700', color: Colors.white, includeFontPadding: false },
 
+  backBtn: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  backArrow: {
+    width: 20,
+    height: 20,
+    resizeMode: 'contain',
+    tintColor: '#fff',
+  },
+
+  headerTitle: {
+    fontSize: 18,
+    color: Colors.white,
+    fontWeight: '700',
+    marginLeft: 12,
+  },
   // Scroll
   scrollContent: { paddingHorizontal: 24, paddingTop: 28, paddingBottom: 16 },
-  title:         { fontSize: 22, fontWeight: '800', color: Colors.textDark, marginBottom: 6 },
-  subtitle:      { fontSize: 13, color: Colors.textGray, marginBottom: 28 },
+  title: { fontSize: 22, fontWeight: '800', color: Colors.textDark, marginBottom: 6 },
+  subtitle: { fontSize: 13, color: Colors.textGray, marginBottom: 28 },
 
   // Input
   label: { fontSize: 13, fontWeight: '600', color: Colors.textDark, marginBottom: 8 },
@@ -460,7 +486,7 @@ const styles = StyleSheet.create({
     borderRadius: 10, paddingHorizontal: 14, marginBottom: 20, height: 52,
   },
   inputIcon: { fontSize: 16, marginRight: 10 },
-  input:     { flex: 1, fontSize: 15, color: Colors.textDark },
+  input: { flex: 1, fontSize: 15, color: Colors.textDark },
   fieldError: { color: '#D32F2F', fontSize: 12, fontWeight: '500', marginTop: -14, marginBottom: 12 },
 
   // Role
@@ -470,10 +496,10 @@ const styles = StyleSheet.create({
     paddingVertical: 20, borderRadius: 12, borderWidth: 1.5,
     borderColor: Colors.borderGray, backgroundColor: Colors.inputBg, gap: 8,
   },
-  roleCardActive:  { backgroundColor: Colors.secondary, borderColor: Colors.secondary },
-  roleEmoji:       { fontSize: 28 },
-  roleText:        { fontSize: 15, fontWeight: '600', color: Colors.textDark },
-  roleTextActive:  { color: Colors.white },
+  roleCardActive: { backgroundColor: Colors.secondary, borderColor: Colors.secondary },
+  roleEmoji: { fontSize: 28 },
+  roleText: { fontSize: 15, fontWeight: '600', color: Colors.textDark },
+  roleTextActive: { color: Colors.white },
 
   // Rider card
   riderCard: {
@@ -481,7 +507,7 @@ const styles = StyleSheet.create({
     padding: 16, marginBottom: 16, backgroundColor: Colors.white,
   },
   riderCardTitle: { fontSize: 15, fontWeight: '800', color: Colors.primary, marginBottom: 14 },
-  riderLabel:     { fontSize: 13, fontWeight: '600', color: Colors.textDark, marginBottom: 8 },
+  riderLabel: { fontSize: 13, fontWeight: '600', color: Colors.textDark, marginBottom: 8 },
 
   // Vehicle chips
   vehicleRow: { flexDirection: 'row', gap: 8, marginBottom: 16 },
@@ -489,9 +515,9 @@ const styles = StyleSheet.create({
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     gap: 4, paddingVertical: 8, borderRadius: 8, backgroundColor: Colors.secondary,
   },
-  vehicleChipActive:      { backgroundColor: Colors.primary },
-  vehicleChipEmoji:       { fontSize: 13 },
-  vehicleChipLabel:       { fontSize: 11, fontWeight: '600', color: Colors.white },
+  vehicleChipActive: { backgroundColor: Colors.primary },
+  vehicleChipEmoji: { fontSize: 13 },
+  vehicleChipLabel: { fontSize: 11, fontWeight: '600', color: Colors.white },
   vehicleChipLabelActive: { color: Colors.white },
 
   // Rider input
@@ -507,11 +533,11 @@ const styles = StyleSheet.create({
     borderRadius: 10, paddingVertical: 20, alignItems: 'center',
     backgroundColor: '#FAFAFA', marginBottom: 14,
   },
-  uploadIcon:       { fontSize: 28, marginBottom: 6 },
-  uploadTitle:      { fontSize: 14, fontWeight: '600', color: Colors.textDark, marginBottom: 4 },
-  uploadHint:       { fontSize: 12, color: Colors.textGray },
-  uploadDoneIcon:   { fontSize: 24, marginBottom: 4 },
-  uploadDoneText:   { fontSize: 13, fontWeight: '600', color: Colors.textDark, marginBottom: 2, maxWidth: '80%' },
+  uploadIcon: { fontSize: 28, marginBottom: 6 },
+  uploadTitle: { fontSize: 14, fontWeight: '600', color: Colors.textDark, marginBottom: 4 },
+  uploadHint: { fontSize: 12, color: Colors.textGray },
+  uploadDoneIcon: { fontSize: 24, marginBottom: 4 },
+  uploadDoneText: { fontSize: 13, fontWeight: '600', color: Colors.textDark, marginBottom: 2, maxWidth: '80%' },
   uploadChangeText: { fontSize: 11, color: Colors.textGray },
 
   // Delivery card
@@ -528,18 +554,18 @@ const styles = StyleSheet.create({
     borderRadius: 10, paddingHorizontal: 14, height: 50,
   },
   dropdownTriggerFilled: { borderColor: Colors.secondary, backgroundColor: '#F0F4FF' },
-  dropdownValue:        { fontSize: 14, color: Colors.textDark, flex: 1 },
-  dropdownValueFilled:  { color: Colors.secondary, fontWeight: '600' },
-  dropdownArrow:        { fontSize: 11, color: Colors.textGray, marginLeft: 8 },
+  dropdownValue: { fontSize: 14, color: Colors.textDark, flex: 1 },
+  dropdownValueFilled: { color: Colors.secondary, fontWeight: '600' },
+  dropdownArrow: { fontSize: 11, color: Colors.textGray, marginLeft: 8 },
   dropdownList: {
     borderWidth: 1, borderColor: Colors.borderGray, borderRadius: 10,
     marginTop: 4, backgroundColor: Colors.white,
     elevation: 3, shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08, shadowRadius: 4, overflow: 'hidden',
   },
-  dropdownItem:         { paddingHorizontal: 14, paddingVertical: 13, borderBottomWidth: 1, borderBottomColor: '#F0F0F0' },
-  dropdownItemActive:   { backgroundColor: '#F0F4FF' },
-  dropdownItemText:     { fontSize: 14, color: Colors.textDark },
+  dropdownItem: { paddingHorizontal: 14, paddingVertical: 13, borderBottomWidth: 1, borderBottomColor: '#F0F0F0' },
+  dropdownItemActive: { backgroundColor: '#F0F4FF' },
+  dropdownItemText: { fontSize: 14, color: Colors.textDark },
   dropdownItemTextActive: { color: Colors.secondary, fontWeight: '700' },
 
   // Zones multi-select
@@ -560,8 +586,8 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.white,
   },
   checkboxChecked: { backgroundColor: Colors.secondary, borderColor: Colors.secondary },
-  checkboxTick:    { color: Colors.white, fontSize: 12, fontWeight: '700' },
-  zoneText:        { fontSize: 14, color: Colors.textDark },
+  checkboxTick: { color: Colors.white, fontSize: 12, fontWeight: '700' },
+  zoneText: { fontSize: 14, color: Colors.textDark },
 
   // Fixed bottom bar
   bottomBar: {
@@ -577,7 +603,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8,
   },
   createBtnDisabled: { opacity: 0.6 },
-  createBtnText:     { color: Colors.white, fontSize: 16, fontWeight: '700', letterSpacing: 0.5 },
+  createBtnText: { color: Colors.white, fontSize: 16, fontWeight: '700', letterSpacing: 0.5 },
 
   // Delivery location
   detectBtn: {
@@ -605,7 +631,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: Colors.borderGray,
   },
-  suggestionName:    { fontSize: 13, fontWeight: '600', color: Colors.textDark },
+  suggestionName: { fontSize: 13, fontWeight: '600', color: Colors.textDark },
   suggestionAddress: { fontSize: 11, color: Colors.textGray, marginTop: 2 },
 });
 

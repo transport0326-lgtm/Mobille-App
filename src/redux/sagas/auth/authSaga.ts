@@ -1,33 +1,21 @@
-import { call, put, takeEvery, spawn, delay } from 'redux-saga/effects';
+import { call, put, takeEvery, spawn } from 'redux-saga/effects';
 import { SagaActions, SagaActionType } from '../index';
-import { apiRequest, getAuthToken } from '../../../config/api.config';
+import { apiRequest } from '../../../config/api.config';
 import API_ENDPOINTS from '../../../config/api.config';
 import { SendOtpPayload, VerifyOtpPayload } from './authAction';
-import { saveToken } from '../../../utils/tokenStorage';
+import { saveToken, saveRole } from '../../../utils/tokenStorage';
 import { setAuthToken } from '../../../config/api.config';
-
-const TEST_PHONE = '9999999999';
-export const TEST_OTP = '1234';
 
 // ─── Send OTP ─────────────────────────────────────────────────────────────────
 
 export function* sendOtpSaga({ payload }: SendOtpPayload): Generator<any, void, any> {
   yield put({ type: `${SagaActions.CLEAR}_${SagaActions.SEND_OTP}` });
 
-  if (payload.phone === TEST_PHONE) {
-    yield delay(800);
-    yield put({
-      type: `${SagaActions.SEND_OTP}_${SagaActionType.SUCCESS}`,
-      payload: { message: 'Test OTP sent successfully', phoneNumber: payload.phone },
-    });
-    return;
-  }
-
   try {
     const response = yield call(apiRequest, API_ENDPOINTS.SEND_OTP, {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${getAuthToken()}`,
+        // Authorization: `Bearer ${getAuthToken()}`,
         'Content-Type': 'application/json',
         Accept: 'application/json',
       },
@@ -37,9 +25,9 @@ export function* sendOtpSaga({ payload }: SendOtpPayload): Generator<any, void, 
     yield put({
       type: `${SagaActions.SEND_OTP}_${SagaActionType.SUCCESS}`,
       payload: {
-        message:     response.data?.message || 'OTP sent successfully',
+        message: response.data?.message || 'OTP sent successfully',
         phoneNumber: payload.phone,
-        otp:         String(response.data?.otp ?? ''),
+        otp: String(response.data?.otp ?? ''),
       },
     });
   } catch (error: any) {
@@ -53,24 +41,6 @@ export function* sendOtpSaga({ payload }: SendOtpPayload): Generator<any, void, 
 // ─── Verify OTP ───────────────────────────────────────────────────────────────
 
 export function* verifyOtpSaga({ payload }: VerifyOtpPayload): Generator<any, void, any> {
-  if (payload.phone === TEST_PHONE) {
-    if (payload.otp !== TEST_OTP) {
-      yield put({
-        type: `${SagaActions.VERIFY_OTP}_${SagaActionType.FAIL}`,
-        payload: 'Invalid OTP. Please enter 1234.',
-      });
-      return;
-    }
-    yield delay(600);
-    const mockToken = 'test-token-local';
-    setAuthToken(mockToken);
-    yield put({
-      type: `${SagaActions.VERIFY_OTP}_${SagaActionType.SUCCESS}`,
-      payload: { token: mockToken, isUser: true, message: 'Test login successful' },
-    });
-    return;
-  }
-
   try {
     const response = yield call(apiRequest, API_ENDPOINTS.VERIFY_OTP, {
       method: 'POST',
@@ -79,8 +49,8 @@ export function* verifyOtpSaga({ payload }: VerifyOtpPayload): Generator<any, vo
         Accept: 'application/json',
       },
       body: JSON.stringify({
-        phone:    payload.phone,
-        otp:      payload.otp,
+        phone: payload.phone,
+        otp: payload.otp,
         ...(payload.fcmToken ? { fcmToken: payload.fcmToken } : {}),
       }),
     });
@@ -89,8 +59,11 @@ export function* verifyOtpSaga({ payload }: VerifyOtpPayload): Generator<any, vo
 
     if (response.data?.token) {
       setAuthToken(response.data.token);
+      console.log('TOKEN SET AFTER OTP:', response.data.token);
+
       try {
         yield call(saveToken, response.data.token);
+        if (response.data.role) yield call(saveRole, response.data.role);
       } catch (storageError) {
         console.warn('[Auth] Failed to persist token:', storageError);
       }

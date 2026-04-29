@@ -19,6 +19,26 @@ export interface BookingCoords {
   dropoffLng: number | null;
 }
 
+export interface TrackBookingData {
+  success: boolean;
+  booking: {
+    _id: string;
+    bookingNumber: string;
+    status: string;
+    pickupLocation:  { address: string; coordinates: { lat: number; lng: number } };
+    dropoffLocation: { address: string; coordinates: { lat: number; lng: number } };
+    vehicleType: string;
+    fare: number;
+    platformFee: number;
+    deliveryOtp: string;
+    receiverName: string;
+    receiverPhone: string;
+    createdAt: string;
+  };
+  rider: any | null;
+  riderLocation: { lat: number; lng: number } | null;
+}
+
 interface BookingState {
   coords: BookingCoords;
   fareEstimate: {
@@ -29,6 +49,11 @@ interface BookingState {
   createBooking: {
     loading: boolean;
     data:    any | null;
+    error:   string | null;
+  };
+  trackBooking: {
+    loading: boolean;
+    data:    TrackBookingData | null;
     error:   string | null;
   };
 }
@@ -52,6 +77,11 @@ const initialState: BookingState = {
     data:    null,
     error:   null,
   },
+  trackBooking: {
+    loading: false,
+    data:    null,
+    error:   null,
+  },
 };
 
 // ─── Slice ────────────────────────────────────────────────────────────────────
@@ -70,9 +100,13 @@ const bookingSlice = createSlice({
       state.coords         = initialState.coords;
       state.fareEstimate   = initialState.fareEstimate;
       state.createBooking  = initialState.createBooking;
+      state.trackBooking   = initialState.trackBooking;
     },
     resetCreateBooking(state) {
       state.createBooking = initialState.createBooking;
+    },
+    resetTrackBooking(state) {
+      state.trackBooking = initialState.trackBooking;
     },
   },
   extraReducers: builder => {
@@ -130,8 +164,33 @@ const bookingSlice = createSlice({
         state.createBooking.error   = action.payload;
       },
     );
+    // ── Track Booking ─────────────────────────────────────────────────────────
+
+    builder.addMatcher(
+      (action: any) => action.type === `${SagaActions.TRACK_BOOKING}_${SagaActionType.REQUEST}`,
+      state => {
+        state.trackBooking.loading = true;
+        state.trackBooking.error   = null;
+      },
+    );
+
+    builder.addMatcher(
+      (action: any) => action.type === `${SagaActions.TRACK_BOOKING}_${SagaActionType.SUCCESS}`,
+      (state, action: any) => {
+        state.trackBooking.loading = false;
+        state.trackBooking.data    = action.payload;
+      },
+    );
+
+    builder.addMatcher(
+      (action: any) => action.type === `${SagaActions.TRACK_BOOKING}_${SagaActionType.FAIL}`,
+      (state, action: any) => {
+        state.trackBooking.loading = false;
+        state.trackBooking.error   = action.payload;
+      },
+    );
   },
 });
 
-export const { setBookingCoords, resetFareEstimate, resetBooking, resetCreateBooking } = bookingSlice.actions;
+export const { setBookingCoords, resetFareEstimate, resetBooking, resetCreateBooking, resetTrackBooking } = bookingSlice.actions;
 export default bookingSlice.reducer;

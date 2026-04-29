@@ -93,6 +93,31 @@ const notificationsSlice = createSlice({
         state.error = action.payload;
       },
     );
+
+    // Mark one as read — optimistic update on REQUEST
+    builder.addMatcher(
+      (action: any) =>
+        action.type ===
+        `${SagaActions.MARK_NOTIFICATION_READ}_${SagaActionType.REQUEST}`,
+      (state, action: any) => {
+        const target = state.notifications.find(n => n._id === action.payload);
+        if (target && !target.isRead) {
+          target.isRead = true;
+          state.unreadCount = Math.max(0, state.unreadCount - 1);
+        }
+      },
+    );
+
+    // Mark all as read — optimistic update on REQUEST
+    builder.addMatcher(
+      (action: any) =>
+        action.type ===
+        `${SagaActions.MARK_ALL_NOTIFICATIONS_READ}_${SagaActionType.REQUEST}`,
+      state => {
+        state.notifications.forEach(n => { n.isRead = true; });
+        state.unreadCount = 0;
+      },
+    );
   },
 });
 

@@ -7,6 +7,7 @@ import { AppTheme } from './src/theme/theme';
 import store from './src/redux/store';
 // import { getFCMToken, registerForegroundListener } from './src/utils/fcm';
 import { getFCMToken } from './src/utils/fcm';
+import { loadToken } from './src/utils/tokenStorage';
 
 const App: React.FC = () => {
   useEffect(() => {
@@ -16,6 +17,10 @@ const App: React.FC = () => {
     // Listen for messages while the app is in the foreground
     // const unsubscribe = registerForegroundListener();
     // return unsubscribe;
+  }, []);
+
+  useEffect(() => {
+    loadToken();
   }, []);
 
   return (

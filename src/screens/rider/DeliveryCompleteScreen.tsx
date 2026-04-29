@@ -11,12 +11,15 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Colors } from '../../theme/theme';
 import { RootStackParamList } from '../../navigation/AppNavigator';
+import { useSelector } from 'react-redux';
+import type { RootState } from '../../redux/store';
 
 type Props = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'DeliveryComplete'>;
 };
 
 const DeliveryCompleteScreen: React.FC<Props> = ({ navigation }) => {
+  const etaMinutes = useSelector((state: RootState) => state.acceptBooking.data?.etaMinutes as number | null | undefined);
   const baseFare     = 30;
   const distanceKm   = 3.2;
   const perKm        = 8;
@@ -61,7 +64,7 @@ const DeliveryCompleteScreen: React.FC<Props> = ({ navigation }) => {
             </View>
           </View>
           <View style={styles.etaPill}>
-            <Text style={styles.etaText}>{distanceKm} km · ~12 min</Text>
+            <Text style={styles.etaText}>{distanceKm} km · {etaMinutes != null ? `~${etaMinutes} min` : '—'}</Text>
           </View>
         </View>
 

@@ -9,6 +9,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  Image,
 } from 'react-native';
 import { Text } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -67,11 +68,13 @@ const EditProfileScreen: React.FC<EditProfileScreenProps> = ({ navigation }) => 
 
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn} activeOpacity={0.7}>
-          <Text style={styles.backArrow}>{'←'}</Text>
-        </TouchableOpacity>
+              <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+                <Image
+                  source={require('../../assets/icons/arrow.png')}
+                  style={styles.backArrow}
+                />
+              </TouchableOpacity>
         <Text style={styles.headerTitle}>Edit Profile</Text>
-        <View style={{ width: 36 }} />
       </View>
 
       <KeyboardAvoidingView
@@ -158,33 +161,33 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
   },
 
-  header: {
+   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     backgroundColor: Colors.secondary,
     paddingHorizontal: 16,
     paddingVertical: 14,
   },
+
   backBtn: {
-    width: 36,
-    height: 36,
+    width: 40,
+    height: 40,
     alignItems: 'center',
     justifyContent: 'center',
   },
+
   backArrow: {
-    fontSize: 22,
-    lineHeight: 22,
-    color: Colors.white,
-    fontWeight: '700',
-    includeFontPadding: false,
+    width: 20,
+    height: 20,
+    resizeMode: 'contain',
+    tintColor: '#fff',
   },
+
   headerTitle: {
     fontSize: 18,
-    lineHeight: 22,
-    fontWeight: '800',
     color: Colors.white,
-    includeFontPadding: false,
+    fontWeight: '700',
+    marginLeft: 12,
   },
 
   scroll: { flex: 1 },
@@ -222,7 +225,7 @@ const styles = StyleSheet.create({
   },
   fieldGroup: { marginBottom: 4 },
   fieldLabel: {
-    fontSize: 12,
+    fontSize: 15,
     color: Colors.textGray,
     marginBottom: 4,
     marginLeft: 2,

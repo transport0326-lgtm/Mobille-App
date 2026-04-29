@@ -13,36 +13,45 @@ import {
   Keyboard,
 } from 'react-native';
 import { Text } from 'react-native-paper';
+import { useDispatch, useSelector } from 'react-redux';
 import { Colors } from '../theme/theme';
+import { fetchMessages, sendMessage } from '../redux/sagas/chat/chatAction';
+import { clearChat } from '../redux/slices/chatSlice';
+import type { RootState, AppDispatch } from '../redux/store';
 
 const { height, width } = Dimensions.get('window');
 const SHEET_HEIGHT = height * 0.72;
+const POLL_INTERVAL_MS = 5000;
 
-type Message = {
-  id: string;
-  text: string;
-  sender: 'rider' | 'me';
-  time: string;
+const getInitials = (name?: string) => {
+  if (!name) return '?';
+  const parts = name.trim().split(' ').filter(Boolean);
+  if (parts.length === 1) return parts[0][0].toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 };
 
-const INITIAL_MESSAGES: Message[] = [
-  { id: '1', text: "I'm on my way 🏍️",                   sender: 'rider', time: '10:33 AM' },
-  { id: '2', text: 'Ok, parcel is ready at the counter',  sender: 'me',    time: '10:36 AM' },
-  { id: '3', text: 'Picked up, heading to drop-off now',  sender: 'rider', time: '10:42 AM' },
-  { id: '4', text: 'Great, thanks!',                      sender: 'me',    time: '10:45 AM' },
-];
+const formatTime = (iso: string) => {
+  const d = new Date(iso);
+  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+};
 
 type Props = {
   visible: boolean;
   onClose: () => void;
+  bookingId: string;
+  riderName?: string;
 };
 
-const ChatBottomSheet: React.FC<Props> = ({ visible, onClose }) => {
-  const [messages, setMessages] = useState<Message[]>(INITIAL_MESSAGES);
+const ChatBottomSheet: React.FC<Props> = ({ visible, onClose, bookingId, riderName }) => {
+  const dispatch = useDispatch<AppDispatch>();
+  const { messages, sending } = useSelector((state: RootState) => state.chat);
+
   const [inputText, setInputText] = useState('');
   const slideAnim = useRef(new Animated.Value(SHEET_HEIGHT)).current;
-  const scrollRef  = useRef<ScrollView>(null);
+  const scrollRef = useRef<ScrollView>(null);
+  const pollRef = useRef<any>(null);
 
+  // Slide animation
   useEffect(() => {
     if (visible) {
       Animated.spring(slideAnim, {
@@ -55,21 +64,52 @@ const ChatBottomSheet: React.FC<Props> = ({ visible, onClose }) => {
     }
   }, [visible]);
 
+  // Start/stop polling when sheet opens or closes
+  useEffect(() => {
+    if (visible && bookingId) {
+      dispatch(clearChat());
+      dispatch(fetchMessages({ bookingId }));
+
+      pollRef.current = setInterval(() => {
+        dispatch(fetchMessages({ bookingId }));
+      }, POLL_INTERVAL_MS);
+    } else {
+      if (pollRef.current) {
+        clearInterval(pollRef.current);
+        pollRef.current = null;
+      }
+    }
+
+    return () => {
+      if (pollRef.current) {
+        clearInterval(pollRef.current);
+        pollRef.current = null;
+      }
+    };
+  }, [visible, bookingId]);
+
+  // Scroll to bottom when messages update
+  useEffect(() => {
+    if (messages.length > 0) {
+      setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
+    }
+  }, [messages.length]);
+
   const handleSend = () => {
-    if (!inputText.trim()) return;
-    const now  = new Date();
-    const time = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    setMessages(prev => [...prev, { id: Date.now().toString(), text: inputText.trim(), sender: 'me', time }]);
+    const text = inputText.trim();
+    if (!text || sending) return;
     setInputText('');
-    setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
+    dispatch(sendMessage({ bookingId, text, senderRole: 'customer' }));
   };
 
   const handleClose = () => {
-    Keyboard.dismiss(); // Hide keyboard only on backdrop click
+    Keyboard.dismiss();
     Animated.timing(slideAnim, {
       toValue: SHEET_HEIGHT, duration: 250, useNativeDriver: true,
     }).start(() => onClose());
   };
+
+  const initials = getInitials(riderName);
 
   return (
     <Modal visible={visible} transparent animationType="none" onRequestClose={handleClose}>
@@ -87,10 +127,10 @@ const ChatBottomSheet: React.FC<Props> = ({ visible, onClose }) => {
           {/* Header */}
           <View style={styles.chatHeader}>
             <View style={styles.riderAvatar}>
-              <Text style={styles.riderAvatarText}>JH</Text>
+              <Text style={styles.riderAvatarText}>{initials}</Text>
             </View>
             <View style={styles.riderInfo}>
-              <Text style={styles.riderName}>Jahid Hasan</Text>
+              <Text style={styles.riderName}>{riderName ?? 'Rider'}</Text>
               <View style={styles.onlineRow}>
                 <View style={styles.onlineDot} />
                 <Text style={styles.onlineText}>On the way</Text>
@@ -107,39 +147,35 @@ const ChatBottomSheet: React.FC<Props> = ({ visible, onClose }) => {
             style={styles.messageList}
             contentContainerStyle={styles.messageListContent}
             showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled" // allow send on first click
+            keyboardShouldPersistTaps="handled"
             onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: false })}>
-            {messages.map(msg => (
-              <View key={msg.id} style={[styles.messageRow, msg.sender === 'me' ? styles.messageRowMe : styles.messageRowRider]}>
-                {msg.sender === 'rider' && (
-                  <View style={styles.msgAvatar}>
-                    <Text style={styles.msgAvatarText}>JH</Text>
-                  </View>
-                )}
-                <View style={msg.sender === 'me' ? styles.bubbleMe : styles.bubbleRider}>
-                  <Text style={msg.sender === 'me' ? styles.bubbleTextMe : styles.bubbleTextRider}>
-                    {msg.text}
-                  </Text>
-                  <Text style={msg.sender === 'me' ? styles.timeMe : styles.timeRider}>
-                    {msg.time}
-                  </Text>
-                </View>
-              </View>
-            ))}
 
-            {/* Typing dots */}
-            <View style={styles.typingRow}>
-              <View style={styles.msgAvatar}>
-                <Text style={styles.msgAvatarText}>JH</Text>
-              </View>
-              <View style={styles.typingBubble}>
-                <View style={styles.typingDots}>
-                  <View style={[styles.typingDot, { opacity: 0.35 }]} />
-                  <View style={[styles.typingDot, { opacity: 0.65 }]} />
-                  <View style={[styles.typingDot, { opacity: 1.0 }]} />
-                </View>
-              </View>
-            </View>
+            {messages.length === 0 ? (
+              <Text style={styles.emptyText}>No messages yet. Say hello!</Text>
+            ) : (
+              messages.map(msg => {
+                const isMe = msg.senderRole === 'customer';
+                return (
+                  <View
+                    key={msg._id}
+                    style={[styles.messageRow, isMe ? styles.messageRowMe : styles.messageRowRider]}>
+                    {!isMe && (
+                      <View style={styles.msgAvatar}>
+                        <Text style={styles.msgAvatarText}>{initials}</Text>
+                      </View>
+                    )}
+                    <View style={isMe ? styles.bubbleMe : styles.bubbleRider}>
+                      <Text style={isMe ? styles.bubbleTextMe : styles.bubbleTextRider}>
+                        {msg.text}
+                      </Text>
+                      <Text style={isMe ? styles.timeMe : styles.timeRider}>
+                        {formatTime(msg.createdAt)}
+                      </Text>
+                    </View>
+                  </View>
+                );
+              })
+            )}
           </ScrollView>
 
           {/* Input */}
@@ -153,10 +189,10 @@ const ChatBottomSheet: React.FC<Props> = ({ visible, onClose }) => {
               multiline
             />
             <TouchableOpacity
-              style={[styles.sendBtn, !inputText.trim() && styles.sendBtnDisabled]}
+              style={[styles.sendBtn, (!inputText.trim() || sending) && styles.sendBtnDisabled]}
               onPress={handleSend}
               activeOpacity={0.8}
-              disabled={!inputText.trim()}>
+              disabled={!inputText.trim() || sending}>
               <Text style={styles.sendBtnIcon}>➤</Text>
             </TouchableOpacity>
           </View>
@@ -168,7 +204,7 @@ const ChatBottomSheet: React.FC<Props> = ({ visible, onClose }) => {
 };
 
 const styles = StyleSheet.create({
-  backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.45)' },
+  backdrop: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.45)' },
   sheet: {
     position: 'absolute', bottom: 0, left: 0, right: 0,
     height: SHEET_HEIGHT, backgroundColor: Colors.white,
@@ -191,6 +227,7 @@ const styles = StyleSheet.create({
 
   messageList:        { flex: 1 },
   messageListContent: { paddingHorizontal: 14, paddingVertical: 14, gap: 12 },
+  emptyText:          { textAlign: 'center', color: Colors.textGray, fontSize: 13, marginTop: 32 },
   messageRow:         { flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
   messageRowMe:       { justifyContent: 'flex-end' },
   messageRowRider:    { justifyContent: 'flex-start' },
@@ -203,11 +240,6 @@ const styles = StyleSheet.create({
   bubbleTextMe:    { fontSize: 14, color: Colors.white,    lineHeight: 20 },
   timeRider:       { fontSize: 10, color: Colors.textGray,              marginTop: 4 },
   timeMe:          { fontSize: 10, color: 'rgba(255,255,255,0.75)',      marginTop: 4, textAlign: 'right' },
-
-  typingRow:    { flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
-  typingBubble: { backgroundColor: '#F0F0F0', borderRadius: 16, borderBottomLeftRadius: 4, paddingHorizontal: 14, paddingVertical: 12 },
-  typingDots:   { flexDirection: 'row', gap: 4 },
-  typingDot:    { width: 7, height: 7, borderRadius: 4, backgroundColor: '#AAAAAA' },
 
   inputRow:        { flexDirection: 'row', alignItems: 'flex-end', paddingHorizontal: 14, paddingVertical: 10, borderTopWidth: 1, borderTopColor: '#F0F0F0', gap: 10, backgroundColor: Colors.white },
   chatInput:       { flex: 1, backgroundColor: '#F5F5F5', borderRadius: 22, paddingHorizontal: 16, paddingVertical: 10, fontSize: 14, color: Colors.textDark, maxHeight: 90 },

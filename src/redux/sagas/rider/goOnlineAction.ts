@@ -3,7 +3,7 @@ import { SagaActions, SagaActionType } from '../index';
 
 export interface GoOnlinePayload {
   type: string;
-  payload: { lat: number; lng: number };
+  payload: { lat: number; lng: number; fcmToken?: string };
 }
 
 export const goOnline = createAction(

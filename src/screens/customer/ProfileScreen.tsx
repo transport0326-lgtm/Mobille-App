@@ -6,24 +6,41 @@ import {
   TouchableOpacity,
   Modal,
   ActivityIndicator,
+  Linking,
+  Alert,
+  Image,
 } from 'react-native';
 import { Text } from 'react-native-paper';
-import { useSelector } from 'react-redux';
-import type { RootState } from '../../redux/store';
+import { useSelector, useDispatch } from 'react-redux';
+import type { RootState, AppDispatch } from '../../redux/store';
+import { deleteAccount } from '../../redux/sagas/deleteAccountAction';
+import { resetDeleteAccount } from '../../redux/slices/deleteAccountSlice';
 import { Colors } from '../../theme/theme';
 
 type MenuItem = {
   id: string;
-  icon: string;
+  icon: any;
   label: string;
   danger?: boolean;
 };
 
 const MENU_ITEMS: MenuItem[] = [
-  { id: 'edit', icon: '✏️', label: 'Edit Profile' },
-  { id: 'delete', icon: '🗑️', label: 'Delete Account' },
-  { id: 'language', icon: '🌐', label: 'Language' },
-  { id: 'help', icon: '❓', label: 'Help & Support', danger: true },
+  {
+    id: 'edit',
+    icon: require('../../assets/icons/edit.png'),
+    label: 'Edit Profile',
+  },
+  {
+    id: 'delete',
+    icon: require('../../assets/icons/delete.png'),
+    label: 'Delete Account',
+    danger: true,
+  },
+  {
+    id: 'help',
+    icon: require('../../assets/icons/help.png'),
+    label: 'Help & Support',
+  },
 ];
 
 type ProfileScreenProps = {
@@ -31,6 +48,7 @@ type ProfileScreenProps = {
   onEditProfile: () => void;
   onHelpSupport: () => void;
   onLanguage: () => void;
+  onDeleteSuccess: () => void;
 };
 
 const getInitials = (name: string) => {
@@ -40,15 +58,50 @@ const getInitials = (name: string) => {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 };
 
-const ProfileScreen: React.FC<ProfileScreenProps> = ({ onLogout, onEditProfile, onHelpSupport, onLanguage }) => {
+const ProfileScreen: React.FC<ProfileScreenProps> = ({
+  onLogout,
+  onEditProfile,
+  onHelpSupport,
+  onLanguage,
+  onDeleteSuccess,
+}) => {
+  const dispatch = useDispatch<AppDispatch>();
   const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   const { data, loading } = useSelector((state: RootState) => state.profile);
   const user = data?.user;
 
+  const { loading: deleting, success: deleteSuccess, error: deleteError } =
+    useSelector((state: RootState) => state.deleteAccount);
+
+  React.useEffect(() => {
+    if (deleteSuccess) {
+      dispatch(resetDeleteAccount());
+      onDeleteSuccess();
+    }
+  }, [deleteSuccess]);
+
+  React.useEffect(() => {
+    if (deleteError) {
+      Alert.alert('Error', deleteError);
+      dispatch(resetDeleteAccount());
+    }
+  }, [deleteError]);
+
+  const handleMenuPress = (id: string) => {
+    if (id === 'edit') return onEditProfile();
+    if (id === 'help') return onHelpSupport();
+    if (id === 'language') return onLanguage();
+    if (id === 'delete') {
+      setShowDeleteModal(true);
+      return;
+    }
+  };
+
   return (
     <>
       <StatusBar barStyle="light-content" backgroundColor={Colors.secondary} />
+      <View style={{ marginBottom: 16 }} />
 
       {/* Header */}
       <View style={styles.header}>
@@ -60,7 +113,12 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ onLogout, onEditProfile, 
               <Text style={styles.avatarText}>{user?.name ? getInitials(user.name) : '?'}</Text>
             </View>
             <Text style={styles.name}>{user?.name || '—'}</Text>
-            <Text style={styles.phone}>{user?.phone ? `+91 ${user.phone}` : '—'}</Text>
+            <TouchableOpacity
+              activeOpacity={0.7}
+              disabled={!user?.phone}
+              onPress={() => user?.phone && Linking.openURL(`tel:${user.phone}`)}>
+              <Text style={styles.phone}>{user?.phone ? `+91 ${user.phone}` : '—'}</Text>
+            </TouchableOpacity>
           </>
         )}
       </View>
@@ -74,16 +132,11 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ onLogout, onEditProfile, 
               styles.menuItem,
               index < MENU_ITEMS.length - 1 && styles.menuItemBorder,
             ]}
-            onPress={
-              item.id === 'edit'     ? onEditProfile
-              : item.id === 'help'  ? onHelpSupport
-              : item.id === 'language' ? onLanguage
-              : item.id === 'delete'   ? () => setShowDeleteModal(true)
-              : undefined
-            }
+            // ✅ FIX: Simple function call — koi inline ternary nahi
+            onPress={() => handleMenuPress(item.id)}
             activeOpacity={0.7}>
-            <Text style={styles.menuIcon}>{item.icon}</Text>
-            <Text style={[styles.menuLabel, item.danger && styles.menuLabelDanger]}>
+            <Image source={item.icon} style={styles.menuIcon} />
+            <Text style={[styles.menuLabel]}>
               {item.label}
             </Text>
             <Text style={styles.chevron}>{'›'}</Text>
@@ -110,10 +163,22 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ onLogout, onEditProfile, 
                 You will lose all saved addresses, booking history, and wallet balance.
               </Text>
             </View>
-            <TouchableOpacity style={styles.deleteBtn} activeOpacity={0.85} onPress={() => setShowDeleteModal(false)}>
-              <Text style={styles.deleteBtnText}>Yes, Delete My Account</Text>
+            <TouchableOpacity
+              style={styles.deleteBtn}
+              activeOpacity={0.85}
+              disabled={deleting}
+              onPress={() => {
+                setShowDeleteModal(false);
+                dispatch(deleteAccount({ type: 'user' }));
+              }}>
+              {deleting
+                ? <ActivityIndicator size="small" color="#fff" />
+                : <Text style={styles.deleteBtnText}>Yes, Delete My Account</Text>}
             </TouchableOpacity>
-            <TouchableOpacity style={styles.cancelBtn} activeOpacity={0.7} onPress={() => setShowDeleteModal(false)}>
+            <TouchableOpacity
+              style={styles.cancelBtn}
+              activeOpacity={0.7}
+              onPress={() => setShowDeleteModal(false)}>
               <Text style={styles.cancelBtnText}>Cancel</Text>
             </TouchableOpacity>
           </View>
@@ -160,6 +225,12 @@ const styles = StyleSheet.create({
   phone: {
     fontSize: 13,
     color: 'rgba(255,255,255,0.7)',
+    marginBottom: 4,
+  },
+  email: {
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.6)',
+    textDecorationLine: 'underline',
   },
 
   menu: {
@@ -177,16 +248,16 @@ const styles = StyleSheet.create({
     borderBottomColor: Colors.borderGray,
   },
   menuIcon: {
-    fontSize: 18,
-    marginRight: 14,
-    width: 24,
-    textAlign: 'center',
+    width: 20,
+    height: 20,
+    resizeMode: 'contain',
+    marginRight: 10,
   },
   menuLabel: {
     flex: 1,
-    fontSize: 15,
+    fontSize: 16,
     color: Colors.textDark,
-    fontWeight: '500',
+    fontWeight: '600',
   },
   menuLabelDanger: {
     color: '#DC2626',

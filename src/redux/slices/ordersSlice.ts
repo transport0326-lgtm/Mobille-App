@@ -3,12 +3,15 @@ import { SagaActions, SagaActionType } from '../sagas/index';
 
 export interface Booking {
   _id: string;
-  pickupAddress?: string;
-  dropoffAddress?: string;
-  pickupLat?: number;
-  pickupLng?: number;
-  dropoffLat?: number;
-  dropoffLng?: number;
+  bookingNumber?: string;
+  pickupLocation?: {
+    address: string;
+    coordinates: { lat: number; lng: number };
+  };
+  dropoffLocation?: {
+    address: string;
+    coordinates: { lat: number; lng: number };
+  };
   vehicleType?: string;
   fare?: number;
   total?: number;

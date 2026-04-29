@@ -1,8 +1,16 @@
-const BASE_URL         = 'http://10.0.2.2:3000';
-const BOOKING_BASE_URL = 'http://10.0.2.2:3003';
-const USER_BASE_URL    = 'http://10.0.2.2:3001';
-const RIDER_BASE_URL   = 'http://10.0.2.2:3002';
-const BASE_URL2 = 'http://10.0.2.2:3004';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const BASE_URL         = 'https://api.transpport.com';
+const BOOKING_BASE_URL = 'https://api.transpport.com';
+const USER_BASE_URL    = 'https://api.transpport.com';
+const RIDER_BASE_URL   = 'https://api.transpport.com';
+const BASE_URL2        = 'https://api.transpport.com';
+
+// const BASE_URL         = 'http://10.0.2.2:3000';
+// const BOOKING_BASE_URL = 'http://10.0.2.2:3003';
+// const USER_BASE_URL    = 'http://10.0.2.2:3001';
+// const RIDER_BASE_URL   = 'http://10.0.2.2:3002';
+// const BASE_URL2 = 'http://10.0.2.2:3004';
 
 // ─── Endpoints ───────────────────────────────────────────────────────────────
 
@@ -28,9 +36,14 @@ export const API_ENDPOINTS = {
   RIDER_ACTIVE:       'bookings/rider/active',
   RATINGS:       'ratings',
   NOTIFICATIONS:  'notifications',
+  BOOKING_STATUS:  'bookings',
+  BOOKINGS:  'bookings',
+  BOOKING_TRACK: 'bookings',
+  CHAT_MESSAGES: (bookingId: string) => `chat/${bookingId}/messages`,
+  RIDER_EARNINGS: 'bookings/rider/earnings',
 } as const;
 
-export { BOOKING_BASE_URL, USER_BASE_URL, RIDER_BASE_URL ,BASE_URL2};
+export { BOOKING_BASE_URL, USER_BASE_URL, RIDER_BASE_URL ,BASE_URL2 ,BASE_URL};
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -49,6 +62,7 @@ export interface ApiError extends Error {
 // Call setAuthToken(token) right after login. It will be attached to every
 // subsequent request as a Bearer token.
 
+
 let _authToken: string | null = null;
 
 export const setAuthToken = (token: string | null): void => {
@@ -57,6 +71,13 @@ export const setAuthToken = (token: string | null): void => {
 };
 
 export const getAuthToken = (): string | null => _authToken;
+
+// ✅ THIS SHOULD BE HERE (OUTSIDE apiRequest)
+export const loadAuthToken = async () => {
+  const token = await AsyncStorage.getItem('authToken');
+  _authToken = token;
+  return token;
+};
 
 // ─── Core Request ─────────────────────────────────────────────────────────────
 

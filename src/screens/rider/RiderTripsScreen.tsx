@@ -10,6 +10,8 @@ import { Text } from 'react-native-paper';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../navigation/AppNavigator';
 import { Colors } from '../../theme/theme';
+import { useDispatch, useSelector } from 'react-redux';
+import { fetchRiderTrips } from '../../redux/sagas/rider/riderTripsAction';
 
 const { width } = Dimensions.get('window');
 
@@ -32,123 +34,143 @@ type Trip = {
   filter: FilterType[];
 };
 
-const TRIPS: Trip[] = [
-  { id: '1', bookingId: 'BK-1042', from: 'Salt Lake Sec V', to: 'Park Street',   distance: '3.2 km', duration: '18 min', time: '10:42 AM',   fare: 55, status: 'Completed', filter: ['Today', 'This Week', 'All Time'] },
-  { id: '2', bookingId: 'BK-1039', from: 'New Town',       to: 'Ballygunge',    distance: '5.1 km', duration: '24 min', time: '09:30 AM',   fare: 80, status: 'Completed', filter: ['Today', 'This Week', 'All Time'] },
-  { id: '3', bookingId: 'BK-1036', from: 'Behala',         to: 'Jadavpur',      distance: '2.8 km', duration: '15 min', time: '08:15 AM',   fare: 45, status: 'Completed', filter: ['Today', 'This Week', 'All Time'] },
-  { id: '4', bookingId: 'BK-1033', from: 'Esplanade',      to: 'Howrah',        distance: '6.5 km', duration: '30 min', time: '07:20 AM',   fare: 95, status: 'Completed', filter: ['Today', 'This Week', 'All Time'] },
-  { id: '5', bookingId: 'BK-1030', from: 'Jadavpur',       to: 'Tollygunge',    distance: '1.5 km', duration: '—',      time: '06:45 AM',   fare: 35, status: 'Cancelled', filter: ['Today', 'This Week', 'All Time'] },
-  { id: '6', bookingId: 'BK-1025', from: 'Dum Dum',        to: 'Behala',        distance: '2.1 km', duration: '12 min', time: 'Yesterday',  fare: 40, status: 'Completed', filter: ['This Week', 'All Time'] },
-  { id: '7', bookingId: 'BK-1020', from: 'Ballygunge',     to: 'Rajarhat',      distance: '4.3 km', duration: '22 min', time: '2 days ago', fare: 65, status: 'Completed', filter: ['This Week', 'All Time'] },
-  { id: '8', bookingId: 'BK-1010', from: 'New Town',       to: 'NSCBI Airport', distance: '3.8 km', duration: '20 min', time: 'Last week',  fare: 70, status: 'Completed', filter: ['All Time'] },
-];
-
 const RiderTripsScreen: React.FC<Props> = ({ navigation: _navigation }) => {
+  const dispatch = useDispatch();
+  const { trips, loading } = useSelector((state: any) => state.riderTrips);
   const [activeFilter, setActiveFilter] = useState<FilterType>('Today');
 
-  const filteredTrips = TRIPS.filter(t => t.filter.includes(activeFilter));
+  const getApiPeriod = (filter: FilterType) => {
+    switch (filter) {
+      case 'Today':
+        return 'today';
+      case 'This Week':
+        return 'thisWeek';
+      case 'All Time':
+        return 'allTime';
+      default:
+        return 'today';
+    }
+  };
+
+  React.useEffect(() => {
+    dispatch(fetchRiderTrips({ period: getApiPeriod(activeFilter) }));
+  }, [activeFilter]);
+
+  const formattedTrips = (trips || []).map((t: any) => ({
+    id: t.bookingNumber,
+    bookingId: t.bookingNumber,
+    from: t.pickup,
+    to: t.dropoff,
+    distance: `${t.distanceKm} km`,
+    duration: '—',
+    time: new Date(t.completedAt).toLocaleTimeString(),
+    fare: t.earning,
+    status: t.status === 'completed' ? 'Completed' : 'Cancelled',
+  }));
+
+  const filteredTrips = formattedTrips;
 
   const totalEarned = filteredTrips
-    .filter(t => t.status === 'Completed')
-    .reduce((sum, t) => sum + t.fare, 0);
+  .filter((t: Trip) => t.status === 'Completed')
+  .reduce((sum: number, t: Trip) => sum + t.fare, 0);
 
-  return (
-    <View style={styles.safeArea}>
+return (
+  <View style={styles.safeArea}>
 
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>My Trips</Text>
-      </View>
-
-      {/* Filter Tabs */}
-      <View style={styles.filterRow}>
-        {(['Today', 'This Week', 'All Time'] as FilterType[]).map(f => (
-          <TouchableOpacity
-            key={f}
-            style={[styles.filterBtn, activeFilter === f && styles.filterBtnActive]}
-            onPress={() => setActiveFilter(f)}
-            activeOpacity={0.8}>
-            <Text style={[styles.filterText, activeFilter === f && styles.filterTextActive]}>
-              {f}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      {/* Summary */}
-      <View style={styles.summaryRow}>
-        <View style={styles.summaryItem}>
-          <Text style={styles.summaryValue}>{filteredTrips.filter(t => t.status === 'Completed').length}</Text>
-          <Text style={styles.summaryLabel}>Completed</Text>
-        </View>
-        <View style={styles.summaryDivider} />
-        <View style={styles.summaryItem}>
-          <Text style={[styles.summaryValue, { color: '#22C55E' }]}>₹{totalEarned}</Text>
-          <Text style={styles.summaryLabel}>Earned</Text>
-        </View>
-        <View style={styles.summaryDivider} />
-        <View style={styles.summaryItem}>
-          <Text style={[styles.summaryValue, { color: Colors.primary }]}>{filteredTrips.filter(t => t.status === 'Cancelled').length}</Text>
-          <Text style={styles.summaryLabel}>Cancelled</Text>
-        </View>
-      </View>
-
-      {/* Trip List */}
-      <ScrollView
-        style={{ flex: 1 }}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.listContent}>
-        {filteredTrips.length === 0 ? (
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyEmoji}>🗒️</Text>
-            <Text style={styles.emptyText}>No trips found</Text>
-          </View>
-        ) : (
-          filteredTrips.map((trip, i) => (
-            <TouchableOpacity
-              key={trip.id}
-              style={styles.tripCard}
-              activeOpacity={0.8}>
-              {/* Top row */}
-              <View style={styles.tripTopRow}>
-                <Text style={styles.tripBookingId}>{trip.bookingId}</Text>
-                <View style={[
-                  styles.statusBadge,
-                  trip.status === 'Completed' ? styles.statusCompleted : styles.statusCancelled,
-                ]}>
-                  <Text style={[
-                    styles.statusText,
-                    trip.status === 'Completed' ? styles.statusTextCompleted : styles.statusTextCancelled,
-                  ]}>
-                    {trip.status}
-                  </Text>
-                </View>
-              </View>
-
-              {/* Route */}
-              <Text style={styles.tripRoute}>
-                {trip.from} → {trip.to}
-              </Text>
-
-              {/* Meta */}
-              <View style={styles.tripMetaRow}>
-                <Text style={styles.tripMeta}>
-                  {trip.distance} · {trip.duration} · {trip.time}
-                </Text>
-                <Text style={[
-                  styles.tripFare,
-                  trip.status === 'Cancelled' && styles.tripFareCancelled,
-                ]}>
-                  ₹{trip.fare}
-                </Text>
-              </View>
-            </TouchableOpacity>
-          ))
-        )}
-      </ScrollView>
-
+    {/* Header */}
+    <View style={styles.header}>
+      <Text style={styles.headerTitle}>My Trips</Text>
     </View>
-  );
+
+    {/* Filter Tabs */}
+    <View style={styles.filterRow}>
+      {(['Today', 'This Week', 'All Time'] as FilterType[]).map(f => (
+        <TouchableOpacity
+          key={f}
+          style={[styles.filterBtn, activeFilter === f && styles.filterBtnActive]}
+          onPress={() => setActiveFilter(f)}
+          activeOpacity={0.8}>
+          <Text style={[styles.filterText, activeFilter === f && styles.filterTextActive]}>
+            {f}
+          </Text>
+        </TouchableOpacity>
+      ))}
+    </View>
+
+    {/* Summary */}
+    <View style={styles.summaryRow}>
+      <View style={styles.summaryItem}>
+        <Text style={styles.summaryValue}>{filteredTrips.filter((t: Trip) => t.status === 'Completed').length}</Text>
+        <Text style={styles.summaryLabel}>Completed</Text>
+      </View>
+      <View style={styles.summaryDivider} />
+      <View style={styles.summaryItem}>
+        <Text style={[styles.summaryValue, { color: '#22C55E' }]}>₹{totalEarned}</Text>
+        <Text style={styles.summaryLabel}>Earned</Text>
+      </View>
+      <View style={styles.summaryDivider} />
+      <View style={styles.summaryItem}>
+        <Text style={[styles.summaryValue, { color: Colors.primary }]}>{filteredTrips.filter((t: any) => t.status === 'Cancelled').length}</Text>
+        <Text style={styles.summaryLabel}>Cancelled</Text>
+      </View>
+    </View>
+
+    {/* Trip List */}
+    <ScrollView
+      style={{ flex: 1 }}
+      showsVerticalScrollIndicator={false}
+      contentContainerStyle={styles.listContent}>
+      {filteredTrips.length === 0 ? (
+        <View style={styles.emptyState}>
+          <Text style={styles.emptyEmoji}>🗒️</Text>
+          <Text style={styles.emptyText}>No trips found</Text>
+        </View>
+      ) : (
+        filteredTrips.map((trip:any, i:any) => (
+          <TouchableOpacity
+            key={trip.id}
+            style={styles.tripCard}
+            activeOpacity={0.8}>
+            {/* Top row */}
+            <View style={styles.tripTopRow}>
+              <Text style={styles.tripBookingId}>{trip.bookingId}</Text>
+              <View style={[
+                styles.statusBadge,
+                trip.status === 'Completed' ? styles.statusCompleted : styles.statusCancelled,
+              ]}>
+                <Text style={[
+                  styles.statusText,
+                  trip.status === 'Completed' ? styles.statusTextCompleted : styles.statusTextCancelled,
+                ]}>
+                  {trip.status}
+                </Text>
+              </View>
+            </View>
+
+            {/* Route */}
+            <Text style={styles.tripRoute}>
+              {trip.from} → {trip.to}
+            </Text>
+
+            {/* Meta */}
+            <View style={styles.tripMetaRow}>
+              <Text style={styles.tripMeta}>
+                {trip.distance} · {trip.duration} · {trip.time}
+              </Text>
+              <Text style={[
+                styles.tripFare,
+                trip.status === 'Cancelled' && styles.tripFareCancelled,
+              ]}>
+                ₹{trip.fare}
+              </Text>
+            </View>
+          </TouchableOpacity>
+        ))
+      )}
+    </ScrollView>
+
+  </View>
+);
 };
 
 const styles = StyleSheet.create({
@@ -176,8 +198,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#F0F0F0',
   },
   filterBtnActive: { backgroundColor: Colors.secondary },
-  filterText:      { fontSize: 13, fontWeight: '600', color: Colors.textGray },
-  filterTextActive:{ color: Colors.white },
+  filterText: { fontSize: 13, fontWeight: '600', color: Colors.textGray },
+  filterTextActive: { color: Colors.white },
 
   // Summary
   summaryRow: {
@@ -188,9 +210,9 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#F0F0F0',
   },
-  summaryItem:    { flex: 1, alignItems: 'center' },
-  summaryValue:   { fontSize: 20, fontWeight: '800', color: Colors.textDark },
-  summaryLabel:   { fontSize: 12, color: Colors.textGray, marginTop: 2 },
+  summaryItem: { flex: 1, alignItems: 'center' },
+  summaryValue: { fontSize: 20, fontWeight: '800', color: Colors.textDark },
+  summaryLabel: { fontSize: 12, color: Colors.textGray, marginTop: 2 },
   summaryDivider: { width: 1, backgroundColor: '#EEEEEE', marginVertical: 4 },
 
   // List
@@ -207,26 +229,26 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 4,
   },
-  tripTopRow:   { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
-  tripBookingId:{ fontSize: 14, fontWeight: '800', color: Colors.textDark },
+  tripTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
+  tripBookingId: { fontSize: 14, fontWeight: '800', color: Colors.textDark },
 
-  statusBadge:          { borderRadius: 20, paddingHorizontal: 10, paddingVertical: 3 },
-  statusCompleted:      { backgroundColor: '#E8F5E9' },
-  statusCancelled:      { backgroundColor: '#FFF0ED' },
-  statusText:           { fontSize: 12, fontWeight: '700' },
-  statusTextCompleted:  { color: '#16A34A' },
-  statusTextCancelled:  { color: Colors.primary },
+  statusBadge: { borderRadius: 20, paddingHorizontal: 10, paddingVertical: 3 },
+  statusCompleted: { backgroundColor: '#E8F5E9' },
+  statusCancelled: { backgroundColor: '#FFF0ED' },
+  statusText: { fontSize: 12, fontWeight: '700' },
+  statusTextCompleted: { color: '#16A34A' },
+  statusTextCancelled: { color: Colors.primary },
 
-  tripRoute:   { fontSize: 14, fontWeight: '600', color: Colors.textDark, marginBottom: 8 },
+  tripRoute: { fontSize: 14, fontWeight: '600', color: Colors.textDark, marginBottom: 8 },
   tripMetaRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  tripMeta:    { fontSize: 12, color: Colors.textGray },
-  tripFare:    { fontSize: 15, fontWeight: '800', color: '#22C55E' },
+  tripMeta: { fontSize: 12, color: Colors.textGray },
+  tripFare: { fontSize: 15, fontWeight: '800', color: '#22C55E' },
   tripFareCancelled: { color: Colors.textGray },
 
   // Empty
   emptyState: { alignItems: 'center', paddingTop: 60 },
   emptyEmoji: { fontSize: 48, marginBottom: 12 },
-  emptyText:  { fontSize: 15, color: Colors.textGray },
+  emptyText: { fontSize: 15, color: Colors.textGray },
 
 });
 

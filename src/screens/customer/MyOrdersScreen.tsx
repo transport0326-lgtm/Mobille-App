@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   ScrollView,
   ActivityIndicator,
+  Image,
 } from 'react-native';
 import { Text } from 'react-native-paper';
 import { useDispatch, useSelector } from 'react-redux';
@@ -15,18 +16,18 @@ import { AppDispatch, RootState } from '../../redux/store';
 import { Booking } from '../../redux/slices/ordersSlice';
 
 const STATUS_LABEL: Record<string, string> = {
-  pending:     'In Progress',
-  accepted:    'In Progress',
+  pending: 'In Progress',
+  accepted: 'In Progress',
   in_progress: 'In Transit',
-  completed:   'Delivered',
-  cancelled:   'Cancelled',
+  completed: 'Delivered',
+  cancelled: 'Cancelled',
 };
 
 const STATUS_COLORS: Record<string, string> = {
-  'In Transit':  '#1A6DFF',
+  'In Transit': '#1A6DFF',
   'In Progress': Colors.primary,
-  'Delivered':   '#16A34A',
-  'Cancelled':   '#DC2626',
+  'Delivered': '#16A34A',
+  'Cancelled': '#DC2626',
 };
 
 function formatDate(iso?: string): string {
@@ -59,18 +60,20 @@ const MyOrdersScreen: React.FC<MyOrdersScreenProps> = ({ onBack }) => {
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={onBack} style={styles.backBtn} activeOpacity={0.7}>
-          <Text style={styles.backArrow}>{'←'}</Text>
+          <Image
+            source={require('../../assets/icons/arrow.png')}
+            style={styles.backArrow}
+          />
         </TouchableOpacity>
         <Text style={styles.title}>My Orders</Text>
-        <View style={{ width: 36 }} />
       </View>
 
       {/* Stats Row */}
       <View style={styles.statsRow}>
         {[
           { label: 'Total Orders', value: stats.totalOrders },
-          { label: 'Delivered',    value: stats.delivered },
-          { label: 'Cancelled',    value: stats.cancelled },
+          { label: 'Delivered', value: stats.delivered },
+          { label: 'Cancelled', value: stats.cancelled },
         ].map(stat => (
           <View key={stat.label} style={styles.statBoxWrapper}>
             <View style={styles.statBox}>
@@ -106,13 +109,13 @@ const MyOrdersScreen: React.FC<MyOrdersScreenProps> = ({ onBack }) => {
             const statusLabel = getStatusLabel(order.status);
             const statusColor = STATUS_COLORS[statusLabel] ?? Colors.primary;
             const fare = order.fare ?? order.total;
-            const from = order.pickupAddress ?? `${order.pickupLat?.toFixed(4)}, ${order.pickupLng?.toFixed(4)}`;
-            const to   = order.dropoffAddress ?? `${order.dropoffLat?.toFixed(4)}, ${order.dropoffLng?.toFixed(4)}`;
+            const from = order.pickupLocation?.address ?? 'Unknown pickup';
+            const to = order.dropoffLocation?.address ?? 'Unknown dropoff';
 
             return (
               <TouchableOpacity key={order._id} style={styles.orderCard} activeOpacity={0.85}>
                 <View style={styles.cardRow}>
-                  <Text style={styles.orderId}>#{order._id.slice(-6).toUpperCase()}</Text>
+                  <Text style={styles.orderId}>{order.bookingNumber ?? `#${order._id.slice(-6).toUpperCase()}`}</Text>
                   <View style={[
                     styles.statusBadge,
                     { backgroundColor: statusColor + '1A', borderColor: statusColor + '44' },
@@ -120,7 +123,7 @@ const MyOrdersScreen: React.FC<MyOrdersScreenProps> = ({ onBack }) => {
                     <Text style={[styles.statusText, { color: statusColor }]}>{statusLabel}</Text>
                   </View>
                 </View>
-                <Text style={styles.route}>{from} → {to}</Text>
+                <Text style={styles.route} numberOfLines={2} ellipsizeMode="tail">{from} → {to}</Text>
                 <View style={styles.cardRow}>
                   <Text style={styles.meta}>{order.vehicleType}{fare != null ? ` · ₹${fare}` : ''}</Text>
                   <Text style={styles.meta}>{formatDate(order.createdAt)}</Text>
@@ -136,33 +139,33 @@ const MyOrdersScreen: React.FC<MyOrdersScreenProps> = ({ onBack }) => {
 };
 
 const styles = StyleSheet.create({
-  header: {
+   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     backgroundColor: Colors.secondary,
     paddingHorizontal: 16,
     paddingVertical: 14,
   },
+
   backBtn: {
-    width: 36,
-    height: 36,
+    width: 40,
+    height: 40,
     alignItems: 'center',
     justifyContent: 'center',
   },
+
   backArrow: {
-    fontSize: 22,
-    lineHeight: 22,
-    color: Colors.white,
-    fontWeight: '700',
-    includeFontPadding: false,
+    width: 20,
+    height: 20,
+    resizeMode: 'contain',
+    tintColor: '#fff',
   },
+
   title: {
     fontSize: 18,
-    lineHeight: 22,
-    fontWeight: '800',
     color: Colors.white,
-    includeFontPadding: false,
+    fontWeight: '700',
+    marginLeft: 12,
   },
   statsRow: {
     flexDirection: 'row',

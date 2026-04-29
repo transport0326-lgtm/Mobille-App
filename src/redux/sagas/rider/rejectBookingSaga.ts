@@ -1,37 +1,53 @@
 import { call, put, takeLatest, spawn } from 'redux-saga/effects';
 import { SagaActions, SagaActionType } from '../index';
 import { apiRequest, BOOKING_BASE_URL } from '../../../config/api.config';
-import { AcceptBookingPayload } from './acceptBookingAction';
+import API_ENDPOINTS from '../../../config/api.config';
+import { loadToken } from '../../../utils/tokenStorage';
 
-function* acceptBookingSaga({ payload }: AcceptBookingPayload): Generator<any, void, any> {
+function* rejectBookingSaga({ payload }: any): Generator<any, void, any> {
   try {
+    const token: string | null = yield call(loadToken);
+    if (!token) {
+      yield put({
+        type: `${SagaActions.REJECT_BOOKING}_${SagaActionType.FAIL}`,
+        payload: 'No auth token available.',
+      });
+      return;
+    }
+
     const response = yield call(
       apiRequest,
-      `bookings/${payload.bookingId}/accept`,
-      { method: 'PATCH' },
+      `${API_ENDPOINTS.BOOKING_STATUS}/${payload.bookingId}/reject`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify({ reason: payload.reason }),
+      },
       BOOKING_BASE_URL,
     );
 
     if (!response) throw new Error('Empty response');
 
     yield put({
-      type: `${SagaActions.ACCEPT_BOOKING}_${SagaActionType.SUCCESS}`,
+      type: `${SagaActions.REJECT_BOOKING}_${SagaActionType.SUCCESS}`,
       payload: response.data,
     });
   } catch (error: any) {
     yield put({
-      type: `${SagaActions.ACCEPT_BOOKING}_${SagaActionType.FAIL}`,
-      payload: error?.message || 'Failed to accept booking.',
+      type: `${SagaActions.REJECT_BOOKING}_${SagaActionType.FAIL}`,
+      payload: error?.message || 'Failed to reject booking.',
     });
   }
 }
 
-function* acceptBookingWatcher() {
-  yield takeLatest(`${SagaActions.ACCEPT_BOOKING}_${SagaActionType.REQUEST}`, acceptBookingSaga);
+function* rejectBookingWatcher() {
+  yield takeLatest(
+    `${SagaActions.REJECT_BOOKING}_${SagaActionType.REQUEST}`,
+    rejectBookingSaga,
+  );
 }
 
-export function* rootAcceptBookingSaga() {
-  yield spawn(acceptBookingWatcher);
+export function* rootRejectBookingSaga() {
+  yield spawn(rejectBookingWatcher);
 }
 
-export default rootAcceptBookingSaga;
+export default rootRejectBookingSaga;

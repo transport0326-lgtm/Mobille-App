@@ -18,7 +18,7 @@ export const Colors = {
   secondary: '#001A48',
   background: '#F5F5F0',
   white: '#FFFFFF',
-  textDark: '#1A1A1A',
+  textDark: '#001A48',
   textGray: '#666666',
   borderGray: '#DDDDDD',
   inputBg: '#F0F0F0',

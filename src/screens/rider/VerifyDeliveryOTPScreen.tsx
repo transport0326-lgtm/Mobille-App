@@ -1,4 +1,4 @@
-﻿import React, { useState, useRef } from 'react';
+﻿import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   StyleSheet,
@@ -6,12 +6,17 @@ import {
   TouchableOpacity,
   TextInput as RNTextInput,
   Dimensions,
+  Image,
 } from 'react-native';
 import { Text } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { useSelector } from 'react-redux';
 import { Colors } from '../../theme/theme';
 import { RootStackParamList } from '../../navigation/AppNavigator';
+import { useDispatch } from 'react-redux';
+import { verifyBookingOtp } from '../../redux/sagas/rider/verifyBookingOtpAction';
+import { resetVerifyOtpState } from '../../redux/slices/verifyBookingOtpSlice';
 
 const { width } = Dimensions.get('window');
 const OTP_LENGTH = 4;
@@ -20,12 +25,50 @@ type Props = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'VerifyDeliveryOTP'>;
 };
 
+// Helper: get initials from name
+const getInitials = (name: string): string => {
+  if (!name) return '??';
+  return name
+    .trim()
+    .split(' ')
+    .slice(0, 2)
+    .map(w => w[0]?.toUpperCase() ?? '')
+    .join('');
+};
+
+// Helper: format payment label
+const formatPayment = (status: string, amount: number): string => {
+  const label = status === 'paid' ? 'ONLINE PAYMENT' : 'ONLINE PAYMENT';
+  return `${label} – ₹${amount}`;
+};
+
+// Helper: distance placeholder (real distance needs Maps API)
+const formatDistance = (
+  pickup: { lat: number; lng: number },
+  dropoff: { lat: number; lng: number },
+): string => {
+  const R = 6371;
+  const dLat = ((dropoff.lat - pickup.lat) * Math.PI) / 180;
+  const dLng = ((dropoff.lng - pickup.lng) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((pickup.lat * Math.PI) / 180) *
+    Math.cos((dropoff.lat * Math.PI) / 180) *
+    Math.sin(dLng / 2) ** 2;
+  const dist = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return `${dist.toFixed(1)} km`;
+};
+
 const VerifyDeliveryOTPScreen: React.FC<Props> = ({ navigation }) => {
+  const dispatch = useDispatch();
   const [otp, setOtp] = useState<string[]>(new Array(OTP_LENGTH).fill(''));
+  const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
   const inputRefs = useRef<(RNTextInput | null)[]>([]);
 
+  // ✅ Redux se booking data lo
+  const booking = useSelector((state: any) => state.updateBookingStatus.booking);
+
   const handleChange = (text: string, index: number) => {
-    // Handle paste
     if (text.length > 1) {
       const pasteData = text.slice(0, OTP_LENGTH).split('');
       const newOtp = [...otp];
@@ -55,11 +98,64 @@ const VerifyDeliveryOTPScreen: React.FC<Props> = ({ navigation }) => {
   };
 
   const isComplete = otp.every(d => d !== '');
+  
+  // useEffect(() => {
+  //   dispatch(resetVerifyOtpState());
+  // }, []);
 
   const handleVerify = () => {
     if (!isComplete) return;
-    navigation.navigate('TripCompleted');
+
+    const enteredOtp = otp.join('');
+
+    dispatch(
+      verifyBookingOtp({
+        bookingId: booking?._id,
+        otp: enteredOtp,
+      }),
+    );
   };
+  const verifyState = useSelector((state: any) => state.verifyBookingOtp);
+
+useEffect(() => {
+  console.log('VERIFY STATE:', verifyState);
+}, [verifyState]);
+  const verifyOtpSuccess = useSelector(
+    (state: any) => state.verifyBookingOtp?.success,
+  );
+
+  useEffect(() => {
+    if (verifyOtpSuccess) {
+      navigation.navigate('TripCompleted');
+    }
+  }, [verifyOtpSuccess]);
+
+  const verifyOtpError = useSelector(
+    (state: any) => state.verifyBookingOtp?.error,
+  );
+
+  useEffect(() => {
+    if (verifyOtpError) {
+      console.log('OTP Error:', verifyOtpError);
+      // yahan alert dikha sakte ho
+    }
+  }, [verifyOtpError]);
+
+
+  // Derived values from booking
+  const receiverName = booking?.receiverName ?? 'Unknown';
+  const receiverPhone = booking?.receiverPhone ?? '';
+  const dropoffAddress = booking?.dropoffLocation?.address ?? 'N/A';
+  const pickupAddress = booking?.pickupLocation?.address ?? 'N/A';
+  const totalAmount = booking?.totalAmount ?? 0;
+  const paymentStatus = booking?.paymentStatus ?? 'unpaid';
+  const distance =
+    booking?.pickupLocation?.coordinates && booking?.dropoffLocation?.coordinates
+      ? formatDistance(
+        booking.pickupLocation.coordinates,
+        booking.dropoffLocation.coordinates,
+      )
+      : 'N/A';
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
@@ -68,7 +164,10 @@ const VerifyDeliveryOTPScreen: React.FC<Props> = ({ navigation }) => {
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <Text style={styles.backArrow}>←</Text>
+          <Image
+            source={require('../../assets/icons/arrow.png')}
+            style={styles.backArrow}
+          />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Verify Delivery OTP</Text>
         <View style={styles.atDeliveryBadge}>
@@ -100,11 +199,13 @@ const VerifyDeliveryOTPScreen: React.FC<Props> = ({ navigation }) => {
               style={[
                 styles.otpBox,
                 digit ? styles.otpBoxFilled : {},
-                index === otp.findIndex(d => d === '') && styles.otpBoxActive,
+                focusedIndex === index && styles.otpBoxActive,
               ]}
               value={digit}
               onChangeText={text => handleChange(text, index)}
               onKeyPress={({ nativeEvent }) => handleKeyPress(nativeEvent.key, index)}
+              onFocus={() => setFocusedIndex(index)}
+              onBlur={() => setFocusedIndex(null)}
               keyboardType="number-pad"
               maxLength={OTP_LENGTH}
               selectTextOnFocus
@@ -113,30 +214,42 @@ const VerifyDeliveryOTPScreen: React.FC<Props> = ({ navigation }) => {
           ))}
         </View>
 
-        {/* Customer Info Card */}
+        {/* Customer Info Card — Dynamic */}
         <View style={styles.customerCard}>
           <View style={styles.customerAvatar}>
-            <Text style={styles.customerAvatarText}>RS</Text>
+            <Text style={styles.customerAvatarText}>{getInitials(receiverName)}</Text>
           </View>
           <View style={styles.customerInfo}>
-            <Text style={styles.customerName}>Rahim Sarker</Text>
-            <Text style={styles.customerAddr}>Salt Lake Sector V, Road 5, Kolkata</Text>
+            <Text style={styles.customerName}>{receiverName}</Text>
+            <Text style={styles.customerAddr}>{dropoffAddress}</Text>
           </View>
           {/* Call Button */}
-          <TouchableOpacity style={styles.callBtn} activeOpacity={0.8}>
+          <TouchableOpacity
+            style={styles.callBtn}
+            activeOpacity={0.8}
+            onPress={() => {
+              if (receiverPhone) {
+                // Linking.openURL(`tel:${receiverPhone}`);
+              }
+            }}>
             <Text style={styles.callIcon}>📞</Text>
           </TouchableOpacity>
         </View>
 
-        {/* Parcel Details */}
+        {/* Parcel Details — Dynamic */}
         <View style={styles.parcelCard}>
           <Text style={styles.parcelTitle}>Parcel Details</Text>
           {[
-            { label: 'Drop-off', value: 'Park Street, Kolkata' },
-            { label: 'Distance', value: '3.2 km' },
-            { label: 'Payment', value: 'COD – ₹55' },
+            { label: 'Drop-off', value: dropoffAddress },
+            { label: 'Distance', value: distance },
+            { label: 'Payment', value: formatPayment(paymentStatus, totalAmount) },
           ].map((row, i, arr) => (
-            <View key={i} style={[styles.parcelRow, i === arr.length - 1 && { borderBottomWidth: 0 }]}>
+            <View
+              key={i}
+              style={[
+                styles.parcelRow,
+                i === arr.length - 1 && { borderBottomWidth: 0 },
+              ]}>
               <Text style={styles.parcelLabel}>{row.label}</Text>
               <Text style={styles.parcelValue}>{row.value}</Text>
             </View>
@@ -169,8 +282,13 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   backBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
-  backArrow: { fontSize: 22, lineHeight: 22, color: Colors.white, fontWeight: '700', includeFontPadding: false },
-  headerTitle: { flex: 1, fontSize: 17, lineHeight: 22, fontWeight: '800', color: Colors.white, includeFontPadding: false },
+  backArrow: {
+    width: 20,
+    height: 20,
+    resizeMode: 'contain',
+    tintColor: '#fff',
+  },
+  headerTitle: { flex: 0, fontSize: 17, lineHeight: 22, fontWeight: '800', color: Colors.white, includeFontPadding: false },
   atDeliveryBadge: { backgroundColor: '#22C55E', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 4 },
   atDeliveryText: { fontSize: 12, fontWeight: '700', color: Colors.white },
 
@@ -182,7 +300,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
 
-  // Pin icon
   pinIconWrap: { marginBottom: 16 },
   pinIconCircle: { width: 64, height: 64, borderRadius: 32, backgroundColor: '#E8F5E9', alignItems: 'center', justifyContent: 'center' },
   pinEmoji: { fontSize: 30 },
@@ -190,7 +307,6 @@ const styles = StyleSheet.create({
   title: { fontSize: 22, fontWeight: '800', color: Colors.textDark, marginBottom: 8, textAlign: 'center' },
   subtitle: { fontSize: 13, color: Colors.textGray, textAlign: 'center', lineHeight: 20, marginBottom: 24 },
 
-  // OTP
   otpRow: { flexDirection: 'row', gap: 12, marginBottom: 24 },
   otpBox: {
     width: (width - 40 - 36) / OTP_LENGTH,
@@ -207,7 +323,6 @@ const styles = StyleSheet.create({
   otpBoxFilled: { borderColor: Colors.secondary, backgroundColor: Colors.white },
   otpBoxActive: { borderColor: Colors.secondary, borderWidth: 2 },
 
-  // Customer card
   customerCard: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -228,17 +343,15 @@ const styles = StyleSheet.create({
   customerInfo: { flex: 1 },
   customerName: { fontSize: 15, fontWeight: '700', color: Colors.textDark },
   customerAddr: { fontSize: 12, color: Colors.textGray, marginTop: 2 },
-  callBtn: { width: 38, height: 38, borderRadius: 19, backgroundColor: '#E8F5E9', alignItems: 'center', justifyContent: 'center' },
+  callBtn: { width: 38, height: 38, borderRadius: 19, backgroundColor: '#21A659', alignItems: 'center', justifyContent: 'center' },
   callIcon: { fontSize: 18 },
 
-  // Parcel details
   parcelCard: { width: '100%', backgroundColor: Colors.white, borderRadius: 12, padding: 16, marginBottom: 24, elevation: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 4 },
   parcelTitle: { fontSize: 14, fontWeight: '800', color: Colors.textDark, marginBottom: 10 },
   parcelRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: '#F5F5F5' },
   parcelLabel: { fontSize: 13, color: Colors.textGray },
   parcelValue: { fontSize: 13, fontWeight: '600', color: Colors.textDark },
 
-  // Verify button
   verifyBtn: { width: '100%', backgroundColor: Colors.primary, borderRadius: 12, paddingVertical: 16, alignItems: 'center', elevation: 2, shadowColor: Colors.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8 },
   verifyBtnDisabled: { opacity: 0.6 },
   verifyBtnText: { color: Colors.white, fontSize: 16, fontWeight: '700' },

@@ -20,6 +20,14 @@ import acceptBookingReducer from './slices/acceptBookingSlice';
 import riderHomeReducer from './slices/riderHomeSlice';
 import notificationReducer from './slices/notificationsSlice';
 import riderActiveReducer from './slices/riderActiveSlice';
+import updateBookingStatusReducer from './slices/updateBookingStatus';
+import verifyBookingOtpReducer from './slices/verifyBookingOtpSlice';
+import riderTripsReducer from './slices/riderTripsSlice';
+import deleteAccountReducer from './slices/deleteAccountSlice';
+import rejectBookingReducer from './slices/rejectBookingSlice';
+import cancelBookingReducer from './slices/cancelBookingSlice';
+import chatReducer from './slices/chatSlice';
+import earningsReducer from './slices/earningsSlice';
 
 const sagaMiddleware = createSagaMiddleware();
 
@@ -54,6 +62,14 @@ const store = configureStore({
     riderHome: riderHomeReducer,
     notifications: notificationReducer,
     riderActive:riderActiveReducer,
+    updateBookingStatus:updateBookingStatusReducer,
+    verifyBookingOtp:verifyBookingOtpReducer,
+    riderTrips:riderTripsReducer,
+    deleteAccount: deleteAccountReducer,
+    rejectBooking: rejectBookingReducer,
+    cancelBooking: cancelBookingReducer,
+    chat: chatReducer,
+    earnings: earningsReducer,
   },
   middleware: getDefaultMiddleware => {
     const base = getDefaultMiddleware({

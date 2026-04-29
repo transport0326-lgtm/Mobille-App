@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   Linking,
   ScrollView,
+  Image,
 } from 'react-native';
 import { Text } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -14,13 +15,18 @@ import { RootStackParamList } from '../../navigation/AppNavigator';
 import { Colors } from '../../theme/theme';
 import { useSelector } from 'react-redux';
 import type { RootState } from '../../redux/store';
+import { useDispatch } from 'react-redux';
+import { updateBookingStatus } from '../../redux/sagas/rider/riderArrivedAction';
+import type { AppDispatch } from '../../redux/store';
 
 type GoingToPickupScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'GoingToPickup'>;
 };
 
 const GoingToPickupScreen: React.FC<GoingToPickupScreenProps> = ({ navigation }) => {
-  const booking = useSelector((state: RootState) => state.acceptBooking.data?.booking);
+  const dispatch = useDispatch<AppDispatch>();
+  const booking    = useSelector((state: RootState) => state.acceptBooking.data?.booking);
+  const etaMinutes = useSelector((state: RootState) => state.acceptBooking.data?.etaMinutes as number | null | undefined);
   console.log('📦 acceptBooking data:', JSON.stringify(booking));
 
   const receiverInitials = booking?.receiverName
@@ -31,6 +37,17 @@ const GoingToPickupScreen: React.FC<GoingToPickupScreenProps> = ({ navigation })
     if (booking?.receiverPhone) {
       Linking.openURL(`tel:${booking.receiverPhone}`);
     }
+  };
+  const handleArrived = () => {
+    if (!booking?._id) return;
+
+    dispatch(
+      updateBookingStatus({
+        bookingId: booking._id,
+        status: 'arrived_at_pickup',
+      })
+    );
+    navigation.navigate('DeliveringParcel');
   };
 
   const handleNavigate = () => {
@@ -47,7 +64,10 @@ const GoingToPickupScreen: React.FC<GoingToPickupScreenProps> = ({ navigation })
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn} activeOpacity={0.7}>
-          <Text style={styles.backArrow}>{'←'}</Text>
+          <Image
+            source={require('../../assets/icons/arrow.png')}
+            style={styles.backArrow}
+          />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Going to Pickup</Text>
         <View style={styles.inRouteBadge}>
@@ -59,23 +79,32 @@ const GoingToPickupScreen: React.FC<GoingToPickupScreenProps> = ({ navigation })
       <View style={styles.etaSection}>
         {/* Navigation Arrow Icon */}
         <View style={styles.navIconWrapper}>
-          <Text style={styles.navIcon}>➤</Text>
+          <Image
+            source={require('../../assets/icons/near_me.png')} // apna path sahi rakhna
+            style={styles.navIcon}
+          />
         </View>
 
-        <Text style={styles.etaTime}>8 min · 2.1 km</Text>
+        <Text style={styles.etaTime}>{etaMinutes != null ? `${etaMinutes} min` : '— min'} · 2.1 km</Text>
         <Text style={styles.etaSub}>Estimated time to pickup</Text>
 
         {/* Navigate Button */}
         <TouchableOpacity style={styles.navigateBtn} onPress={handleNavigate} activeOpacity={0.85}>
-          <Text style={styles.navigateBtnIcon}>▲  </Text>
+          <Image
+            source={require('../../assets/icons/navigation.png')}
+            style={styles.navigateBtnIcon}
+          />
           <Text style={styles.navigateBtnText}>Navigate in Google Maps</Text>
         </TouchableOpacity>
 
         {/* Pickup Address Row */}
         <View style={styles.addressRow}>
-          <Text style={styles.addressPin}>📍</Text>
+          <Image
+            source={require('../../assets/icons/location_on.png')}
+            style={styles.addressPin}
+          />
           <Text style={styles.addressText} numberOfLines={1}>
-            {booking?.pickupLocation?.address ?? 'Koramangala 5th Block, Bangalore'}
+            {booking?.pickupLocation?.address ?? ''}
           </Text>
         </View>
       </View>
@@ -96,7 +125,16 @@ const GoingToPickupScreen: React.FC<GoingToPickupScreenProps> = ({ navigation })
               </Text>
             </View>
             <View style={styles.actionBtns}>
-              <TouchableOpacity style={styles.chatBtn} activeOpacity={0.8}>
+              <TouchableOpacity
+                style={styles.chatBtn}
+                activeOpacity={0.8}
+                onPress={() => navigation.navigate('RiderChat', {
+                  customerName: booking?.receiverName ?? 'Customer',
+                  bookingNumber: `BK-${booking?.bookingNumber ?? ''}`,
+                  bookingStatus: 'Going to Pickup',
+                  customerPhone: booking?.receiverPhone,
+                  bookingId: booking?._id,
+                })}>
                 <Text style={styles.chatBtnText}>💬 Chat</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.callBtn} onPress={handleCall} activeOpacity={0.8}>
@@ -119,7 +157,7 @@ const GoingToPickupScreen: React.FC<GoingToPickupScreenProps> = ({ navigation })
           {/* Arrived button */}
           <TouchableOpacity
             style={styles.arrivedBtn}
-            onPress={() => navigation.navigate('DeliveringParcel')}
+            onPress={handleArrived}
             activeOpacity={0.85}>
             <Text style={styles.arrivedBtnText}>I've Arrived at Pickup</Text>
           </TouchableOpacity>
@@ -142,9 +180,14 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     gap: 10,
   },
-  backBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
-  backArrow: { fontSize: 22, lineHeight: 22, color: Colors.white, fontWeight: '700', includeFontPadding: false },
-  headerTitle: { flex: 1, fontSize: 17, fontWeight: '800', color: Colors.white },
+  backBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' }, 
+  backArrow: {
+    width: 20,
+    height: 20,
+    resizeMode: 'contain',
+    tintColor: '#fff',
+  },
+  headerTitle: { flex: 0, fontSize: 17, fontWeight: '800', color: Colors.white },
   inRouteBadge: { backgroundColor: '#22C55E', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 4 },
   inRouteText: { fontSize: 12, fontWeight: '700', color: Colors.white },
 
@@ -159,25 +202,23 @@ const styles = StyleSheet.create({
   navIconWrapper: {
     width: 48,
     height: 48,
-    borderRadius: 24,
-    backgroundColor: Colors.secondary,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 14,
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
   },
-  navIcon: { fontSize: 20, color: '#FFFFFF' },
+  navIcon: {
+    width: 35,
+    height: 35,
+    resizeMode: 'contain',
+    tintColor: Colors.secondary,
+  },
   etaTime: { fontSize: 20, fontWeight: '800', color: Colors.textDark },
   etaSub: { fontSize: 13, color: Colors.textGray, marginTop: 4, marginBottom: 18 },
 
   navigateBtn: {
     flexDirection: 'row',
-    backgroundColor: '#2563EB',
-    borderRadius: 10,
+    backgroundColor: '#3385F5',
+    borderRadius: 15,
     paddingVertical: 14,
     paddingHorizontal: 20,
     alignItems: 'center',
@@ -186,16 +227,27 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     elevation: 3,
   },
-  navigateBtnIcon: { color: '#FFFFFF', fontSize: 14, fontWeight: '700' },
-  navigateBtnText: { color: '#FFFFFF', fontSize: 14, fontWeight: '700' },
+  navigateBtnIcon: {
+    width: 20,
+    height: 20,
+    resizeMode: 'contain',
+    tintColor: '#fff',
+  },
+  navigateBtnText: { color: '#FFFFFF', fontSize: 18, fontWeight: '700', marginStart: 5 },
 
   addressRow: {
     flexDirection: 'row',
     alignItems: 'center',
     alignSelf: 'flex-start',
     gap: 6,
+    marginTop: 30,
+    marginBottom: 30,
   },
-  addressPin: { fontSize: 14 },
+  addressPin: {
+    width: 14,
+    height: 14,
+    resizeMode: 'contain',
+  },
   addressText: { fontSize: 14, color: Colors.textDark, fontWeight: '500' },
 
   // Panel
@@ -220,6 +272,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#F1F5F9',
     gap: 10,
+    marginTop: 15,
   },
   avatar: {
     width: 44, height: 44, borderRadius: 22,
@@ -240,6 +293,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 10,
     backgroundColor: '#F8F9FA', borderRadius: 10,
     paddingHorizontal: 14, paddingVertical: 12,
+    marginTop: 20,
   },
   locationDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#22C55E' },
   locationLabel: { fontSize: 11, color: Colors.textGray, marginBottom: 2 },
@@ -247,7 +301,7 @@ const styles = StyleSheet.create({
 
   // Arrived button
   arrivedBtn: {
-    backgroundColor: '#F97316',
+    backgroundColor: '#F75522',
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: 'center',

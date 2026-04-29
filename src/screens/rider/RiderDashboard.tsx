@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import type { AppDispatch, RootState } from '../../redux/store';
 import { fetchRiderProfile } from '../../redux/sagas/profile/riderProfileAction';
@@ -30,10 +30,11 @@ import RiderTripsScreen from './RiderTripsScreen';
 import RiderEarningsScreen from './RiderEarningsScreen';
 import RiderProfileScreen from './RiderProfileScreen';
 import { fetchRiderHome } from '../../redux/sagas/rider/riderHomeAction';
+import AppHeader from '../../components/AppHeader';
 import { fetchRiderActive } from '../../redux/sagas/rider/riderActiveAction';
 import { getNotifications } from '../../redux/sagas/notifications/riderNotificationsAction';
 import messaging from '@react-native-firebase/messaging';
-import { getFCMToken, registerForegroundListener } from '../../utils/fcm';
+import { getFCMToken } from '../../utils/fcm';
 
 type RiderDashboardProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'RiderDashboard'>;
@@ -42,6 +43,12 @@ type RiderDashboardProps = {
 type TabName = 'Home' | 'Trips' | 'Earnings' | 'Profile';
 
 const TAB_ITEMS: TabName[] = ['Home', 'Trips', 'Earnings', 'Profile'];
+
+Geolocation.setRNConfiguration({
+  skipPermissionRequests: false,
+  authorizationLevel: 'whenInUse',
+  locationProvider: 'auto',
+});
 
 // ══════════════════════════════════════════════════════════════════════════
 
@@ -54,6 +61,22 @@ const RiderDashboard: React.FC<RiderDashboardProps> = ({ navigation }) => {
   const { data: homeData } = useSelector((state: RootState) => state.riderHome as { data: import('../../redux/slices/riderHomeSlice').RiderHomeData | null; loading: boolean; error: string | null; success: boolean });
 
   const isOnline = homeData?.isOnline ?? false;
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Poll fetchRiderActive every 10s while online — fallback when FCM is not delivered
+  useEffect(() => {
+    if (isOnline) {
+      dispatch(fetchRiderActive());
+      pollRef.current = setInterval(() => {
+        dispatch(fetchRiderActive());
+      }, 10000);
+    } else {
+      if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+    }
+    return () => {
+      if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+    };
+  }, [isOnline]);
 
   // After go-online succeeds, re-fetch home so isOnline updates from API
   useEffect(() => {
@@ -88,6 +111,8 @@ const RiderDashboard: React.FC<RiderDashboardProps> = ({ navigation }) => {
 
   const handleGoOnline = async () => {
     try {
+      const fcmToken = await getFCMToken().catch(() => null);
+
       if (Platform.OS === 'android') {
         const granted = await PermissionsAndroid.request(
           PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
@@ -103,18 +128,26 @@ const RiderDashboard: React.FC<RiderDashboardProps> = ({ navigation }) => {
           dispatch(goOnline({
             lat: pos.coords.latitude,
             lng: pos.coords.longitude,
+            ...(fcmToken ? { fcmToken } : {}),
           }));
         },
         error => {
           console.log('GPS Error:', error.code, error.message);
-          // ✅ GPS fail hone pe bhi app band nahi hoga
-          Alert.alert('Location Error', 'Could not get location. Please try again.');
+          Geolocation.getCurrentPosition(
+            pos => {
+              dispatch(goOnline({
+                lat: pos.coords.latitude,
+                lng: pos.coords.longitude,
+                ...(fcmToken ? { fcmToken } : {}),
+              }));
+            },
+            () => {
+              Alert.alert('Location Error', 'Location nahi mili. GPS on hai? Please try again.');
+            },
+            { enableHighAccuracy: false, timeout: 20000, maximumAge: 120000 },
+          );
         },
-        {
-          enableHighAccuracy: false,
-          timeout: 10000,
-          maximumAge: 60000,
-        }
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
       );
     } catch (err) {
       console.log('handleGoOnline ERROR:', err);
@@ -128,48 +161,26 @@ const RiderDashboard: React.FC<RiderDashboardProps> = ({ navigation }) => {
   };
 
   useEffect(() => {
-    console.log('🔥 FCM useEffect mounted');
-    getFCMToken();
     dispatch(getNotifications());
-
-    // ✅ FIX 1: foreground listener uncomment + callback sahi hai ab
-    const unsubscribeForeground = registerForegroundListener((remoteMessage: any) => {
-      console.log('🔥 FCM useEffect mounted 33');
-      console.log('🔔 DATA TYPE:', remoteMessage?.data?.type);
-
-      // ✅ title se check karo jab tak backend type fix nahi karta
-      if (
-        remoteMessage?.data?.type === 'NEW_ORDER_REQUEST' ||
-        remoteMessage?.notification?.title === 'New Delivery Request'
-      ) {
-        dispatch(getNotifications());
-        dispatch(fetchRiderActive());
-      }
+    const unsubscribeForeground = messaging().onMessage(_msg => {
+      console.log('[RiderDashboard] FCM foreground — fetching active booking');
+      dispatch(getNotifications());
+      dispatch(fetchRiderActive());
     });
-
-    // Background ke liye bhi same
-    const unsubscribeBackground = messaging().onNotificationOpenedApp(remoteMessage => {
-      if (
-        remoteMessage?.data?.type === 'NEW_ORDER_REQUEST' ||
-        remoteMessage?.notification?.title === 'New Delivery Request'
-      ) {
-        dispatch(getNotifications());
-        dispatch(fetchRiderActive());
-      }
+    const unsubscribeBackground = messaging().onNotificationOpenedApp(() => {
+      dispatch(getNotifications());
+      dispatch(fetchRiderActive());
     });
 
     messaging().getInitialNotification().then(remoteMessage => {
-      if (remoteMessage && (
-        remoteMessage?.data?.type === 'NEW_ORDER_REQUEST' ||
-        remoteMessage?.notification?.title === 'New Delivery Request'
-      )) {
+      if (remoteMessage) {
         dispatch(getNotifications());
         dispatch(fetchRiderActive());
       }
     });
 
     return () => {
-      unsubscribeForeground();   // ✅ cleanup
+      unsubscribeForeground();
       unsubscribeBackground();
     };
   }, [dispatch]);
@@ -199,11 +210,12 @@ const RiderDashboard: React.FC<RiderDashboardProps> = ({ navigation }) => {
 
       {activeTab === 'Home' && (
         <View style={styles.content}>
-          <View style={styles.homeHeader}>
-            <Text style={styles.headerGreeting}>Hello, {homeData?.name ?? '...'}!</Text>
-            <Text style={styles.headerSub}>Aap Hi Transpport Ho</Text>
-          </View>
-
+          <AppHeader
+            name={homeData?.name ?? undefined}
+            subtitle="Aap Hi Transpport Ho"
+            showBell
+            onBellPress={() => navigation.navigate('Notifications')}
+          />
           <View style={[styles.bannerWrapper, isOnline && styles.bannerWrapperOnline]}>
             <View style={[styles.banner, isOnline && styles.bannerOnline]}>
               <View style={styles.bannerText}>
@@ -299,15 +311,6 @@ const RiderDashboard: React.FC<RiderDashboardProps> = ({ navigation }) => {
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: Colors.background },
   content: { flex: 1 },
-
-  // ── Home ─────────────────────────────────────────────────────────────
-  homeHeader: {
-    backgroundColor: Colors.secondary,
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-  },
-  headerGreeting: { fontSize: 20, fontWeight: '800', color: Colors.white },
-  headerSub: { fontSize: 13, color: 'rgba(255,255,255,0.7)', marginTop: 2 },
 
   bannerWrapper: { marginHorizontal: 16, marginTop: 14, marginBottom: 4, borderRadius: 10, overflow: 'hidden' },
   bannerWrapperOnline: { borderRadius: 10 },

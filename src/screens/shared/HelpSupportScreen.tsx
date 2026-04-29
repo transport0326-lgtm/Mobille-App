@@ -1,10 +1,11 @@
-﻿import React from 'react';
+﻿import React, { useState } from 'react';
 import {
   View,
   StyleSheet,
   StatusBar,
   TouchableOpacity,
   ScrollView,
+  Linking,
 } from 'react-native';
 import { Text } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -16,71 +17,108 @@ type Props = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'HelpSupport'>;
 };
 
+const SUPPORT_PHONE = '+918001234567';
+const SUPPORT_EMAIL = 'support@transpport.com';
+
 const CONTACT_OPTIONS = [
   { id: 'chat',  icon: '💬', label: 'Live Chat', onPress: (nav: Props['navigation']) => nav.navigate('LiveChat') },
-  { id: 'call',  icon: '📞', label: 'Call Us',   onPress: () => {} },
-  { id: 'email', icon: '📧', label: 'Email',     onPress: () => {} },
+  { id: 'call',  icon: '📞', label: 'Call Us',   onPress: () => Linking.openURL(`tel:${SUPPORT_PHONE}`) },
+  { id: 'email', icon: '📧', label: 'Email',     onPress: () => Linking.openURL(`mailto:${SUPPORT_EMAIL}`) },
 ];
 
 const FAQS = [
-  'How do I update my bank details?',
-  'What to do if customer is unavailable?',
-  'How are earnings calculated?',
-  'How to report a safety incident?',
-  'What if the parcel is damaged?',
-  'How do I take a break / go offline?',
+  {
+    question: 'How do I update my bank details?',
+    answer: 'Go to Profile → Bank & Payment Details. Enter your account number, IFSC code, and account holder name, then tap Save. Changes are reviewed within 24 hours.',
+  },
+  {
+    question: 'What to do if customer is unavailable?',
+    answer: 'Wait at least 5 minutes at the pickup location. If the customer is still unreachable, tap "Customer Unavailable" on the trip screen. Our support team will guide you on next steps.',
+  },
+  {
+    question: 'How are earnings calculated?',
+    answer: 'You earn a base fare for each trip plus a per-km distance charge. Bonuses may apply during peak hours. Your full breakdown is visible in the Earnings section after every completed trip.',
+  },
+  {
+    question: 'How to report a safety incident?',
+    answer: 'Tap the Emergency button on the active trip screen to alert our team instantly. You can also email support@transpport.com with the trip ID and a description of the incident.',
+  },
+  {
+    question: 'What if the parcel is damaged?',
+    answer: 'Take clear photos of the damage before touching the parcel. Report it through the app using "Report Issue" on the trip screen or email us. Do not attempt to deliver a visibly damaged parcel.',
+  },
+  {
+    question: 'How do I take a break / go offline?',
+    answer: 'Tap the "Go Offline" button on your dashboard. You will stop receiving new delivery requests immediately. Tap "Go Online" whenever you are ready to start accepting trips again.',
+  },
 ];
 
-const HelpSupportScreen: React.FC<Props> = ({ navigation }) => (
-  <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-    <StatusBar barStyle="light-content" backgroundColor={Colors.secondary} />
+const HelpSupportScreen: React.FC<Props> = ({ navigation }) => {
+  const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
 
-    {/* Header */}
-    <View style={styles.header}>
-      <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn} activeOpacity={0.7}>
-        <Text style={styles.backArrow}>←</Text>
-      </TouchableOpacity>
-      <Text style={styles.headerTitle}>Help & Support</Text>
-      <View style={{ width: 36 }} />
-    </View>
+  const toggle = (i: number) => setExpandedIndex(prev => (prev === i ? null : i));
 
-    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+  return (
+    <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+      <StatusBar barStyle="light-content" backgroundColor={Colors.secondary} />
 
-      {/* Contact options */}
-      <View style={styles.contactCard}>
-        {CONTACT_OPTIONS.map(option => (
-          <TouchableOpacity
-            key={option.id}
-            style={styles.contactItem}
-            activeOpacity={0.7}
-            onPress={() => option.onPress(navigation)}>
-            <View style={styles.iconBox}>
-              <Text style={styles.iconEmoji}>{option.icon}</Text>
-            </View>
-            <Text style={styles.contactLabel}>{option.label}</Text>
-          </TouchableOpacity>
-        ))}
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn} activeOpacity={0.7}>
+          <Text style={styles.backArrow}>←</Text>
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Help & Support</Text>
+        <View style={{ width: 36 }} />
       </View>
 
-      {/* FAQ */}
-      <Text style={styles.faqTitle}>Frequently Asked Questions</Text>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
 
-      <View style={styles.faqList}>
-        {FAQS.map((question, i) => (
-          <TouchableOpacity
-            key={i}
-            style={[styles.faqItem, i < FAQS.length - 1 && styles.faqItemBorder]}
-            activeOpacity={0.7}>
-            <Text style={styles.faqText}>{question}</Text>
-            <Text style={styles.chevron}>›</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
+        {/* Contact options */}
+        <View style={styles.contactCard}>
+          {CONTACT_OPTIONS.map(option => (
+            <TouchableOpacity
+              key={option.id}
+              style={styles.contactItem}
+              activeOpacity={0.7}
+              onPress={() => option.onPress(navigation)}>
+              <View style={styles.iconBox}>
+                <Text style={styles.iconEmoji}>{option.icon}</Text>
+              </View>
+              <Text style={styles.contactLabel}>{option.label}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
 
-      <View style={{ height: 24 }} />
-    </ScrollView>
-  </SafeAreaView>
-);
+        {/* FAQ */}
+        <Text style={styles.faqTitle}>Frequently Asked Questions</Text>
+
+        <View style={styles.faqList}>
+          {FAQS.map((faq, i) => {
+            const isOpen = expandedIndex === i;
+            return (
+              <View key={i} style={[i < FAQS.length - 1 && styles.faqItemBorder]}>
+                <TouchableOpacity
+                  style={styles.faqItem}
+                  activeOpacity={0.7}
+                  onPress={() => toggle(i)}>
+                  <Text style={[styles.faqText, isOpen && styles.faqTextOpen]}>{faq.question}</Text>
+                  <Text style={[styles.chevron, isOpen && styles.chevronOpen]}>›</Text>
+                </TouchableOpacity>
+                {isOpen && (
+                  <View style={styles.answerBox}>
+                    <Text style={styles.answerText}>{faq.answer}</Text>
+                  </View>
+                )}
+              </View>
+            );
+          })}
+        </View>
+
+        <View style={{ height: 24 }} />
+      </ScrollView>
+    </SafeAreaView>
+  );
+};
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: Colors.background },
@@ -127,8 +165,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18, paddingVertical: 18,
   },
   faqItemBorder: { borderBottomWidth: 1, borderBottomColor: '#F0F0F0' },
-  faqText:  { flex: 1, fontSize: 14, color: Colors.textDark },
-  chevron:  { fontSize: 20, color: Colors.textGray, lineHeight: 22 },
+  faqText:     { flex: 1, fontSize: 14, color: Colors.textDark },
+  faqTextOpen: { color: Colors.secondary, fontWeight: '700' },
+  chevron:     { fontSize: 20, color: Colors.textGray, lineHeight: 22 },
+  chevronOpen: { transform: [{ rotate: '90deg' }], color: Colors.secondary },
+  answerBox:   { paddingHorizontal: 18, paddingBottom: 16, paddingTop: 2 },
+  answerText:  { fontSize: 13, color: Colors.textGray, lineHeight: 20 },
 });
 
 export default HelpSupportScreen;

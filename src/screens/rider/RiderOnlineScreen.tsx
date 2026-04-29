@@ -8,8 +8,11 @@ import { Colors } from '../../theme/theme';
 import DeliveryRequestModal from '../../components/modals/DeliveryRequestModal';
 import { acceptBooking } from '../../redux/sagas/rider/acceptBookingAction';
 import { resetAcceptBooking } from '../../redux/slices/acceptBookingSlice';
+import { rejectBooking } from '../../redux/sagas/rider/rejectBookingAction';
+import { resetRejectBooking } from '../../redux/slices/rejectBookingSlice';
 import { resetRiderActive } from '../../redux/slices/riderActiveSlice';
 import type { AppDispatch, RootState } from '../../redux/store';
+import type { RiderHomeData } from '../../redux/slices/riderHomeSlice';
 
 type RiderOnlineScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'RiderDashboard'>;
@@ -20,10 +23,17 @@ const RiderOnlineScreen: React.FC<RiderOnlineScreenProps> = ({ navigation }) => 
 
   const { loading: accepting, success: acceptSuccess, error: acceptError } =
     useSelector((state: RootState) => state.acceptBooking);
+  const { loading: rejecting, success: rejectSuccess, error: rejectError } =
+    useSelector((state: RootState) => state.rejectBooking);
 
   const { data: activeData } = useSelector((state: RootState) => state.riderActive);
   const activeBooking = activeData?.booking;
   const modalVisible = !!activeBooking && activeBooking.status === 'pending';
+
+  const { data: homeData } = useSelector((state: RootState) => state.riderHome as { data: RiderHomeData | null; loading: boolean; error: string | null; success: boolean });
+
+  const todaySummary = homeData?.todaySummary;
+  const recentDeliveries = homeData?.recentDeliveries ?? [];
 
   const customerInitials = activeBooking?.receiverName
     ? activeBooking.receiverName
@@ -46,13 +56,29 @@ const RiderOnlineScreen: React.FC<RiderOnlineScreenProps> = ({ navigation }) => 
     }
   }, [acceptError]);
 
+  useEffect(() => {
+    if (rejectSuccess) {
+      dispatch(resetRejectBooking());
+      dispatch(resetRiderActive());
+    }
+  }, [rejectSuccess]);
+
+  useEffect(() => {
+    if (rejectError) {
+      Alert.alert('Failed to reject', rejectError);
+      dispatch(resetRejectBooking());
+      dispatch(resetRiderActive());
+    }
+  }, [rejectError]);
+
   const handleAccept = () => {
     if (!activeBooking) return;
     dispatch(acceptBooking({ bookingId: activeBooking._id }));
   };
 
-  const handleReject = () => {
-    dispatch(resetRiderActive());
+  const handleReject = (reason: string) => {
+    if (!activeBooking) return;
+    dispatch(rejectBooking({ bookingId: activeBooking._id, reason }));
   };
 
   return (
@@ -65,22 +91,44 @@ const RiderOnlineScreen: React.FC<RiderOnlineScreenProps> = ({ navigation }) => 
         <Text style={styles.sectionTitle}>Today's Summary</Text>
         <View style={styles.summaryRow}>
           <View style={[styles.summaryCard, { backgroundColor: '#F0FDF4' }]}>
-            <Text style={[styles.summaryValue, { color: '#16A34A' }]}>₹ 385</Text>
+            <Text style={[styles.summaryValue, { color: '#16A34A' }]}>₹ {todaySummary?.earnings ?? 0}</Text>
             <Text style={styles.summaryLabel}>Earnings</Text>
           </View>
           <View style={[styles.summaryCard, { backgroundColor: '#F3F4F6' }]}>
-            <Text style={[styles.summaryValue, { color: Colors.textDark }]}>7</Text>
+            <Text style={[styles.summaryValue, { color: Colors.textDark }]}>{todaySummary?.trips ?? 0}</Text>
             <Text style={styles.summaryLabel}>Trips</Text>
           </View>
           <View style={[styles.summaryCard, { backgroundColor: '#FFF7ED' }]}>
-            <Text style={[styles.summaryValue, { color: Colors.primary }]}>28 km</Text>
+            <Text style={[styles.summaryValue, { color: Colors.primary }]}>{todaySummary?.distanceKm ?? 0} km</Text>
             <Text style={styles.summaryLabel}>Distance</Text>
           </View>
         </View>
 
         <Text style={[styles.sectionTitle, { marginTop: 20 }]}>Recent Deliveries</Text>
         <View style={styles.deliveriesCard}>
-          {/* TODO: replace with real trips data */}
+          {recentDeliveries.length === 0 ? (
+            <Text style={{ color: Colors.textGray, paddingVertical: 16, textAlign: 'center' }}>
+              No recent deliveries
+            </Text>
+          ) : (
+            recentDeliveries.map((item, i) => (
+              <View
+                key={item._id}
+                style={[
+                  styles.deliveryRow,
+                  i < recentDeliveries.length - 1 && styles.deliveryRowBorder,
+                ]}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.deliveryRoute} numberOfLines={2} ellipsizeMode="tail">
+                    {item.pickupLocation?.address} → {item.dropoffLocation?.address}
+                  </Text>
+                  <Text style={styles.deliveryTime} numberOfLines={1}>
+                    {item.bookingNumber} • {new Date(item.updatedAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                  </Text>
+                </View>
+              </View>
+            ))
+          )}
         </View>
 
       </ScrollView>
@@ -103,6 +151,7 @@ const RiderOnlineScreen: React.FC<RiderOnlineScreenProps> = ({ navigation }) => 
         onAccept={handleAccept}
         accepting={accepting}
         onReject={handleReject}
+        rejecting={rejecting}
       />
     </>
   );
