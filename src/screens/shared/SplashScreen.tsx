@@ -11,7 +11,7 @@ import { Text } from 'react-native-paper';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../navigation/AppNavigator';
 import { Colors } from '../../theme/theme';
-import { loadToken, loadRole } from '../../utils/tokenStorage';
+import { loadToken, loadRole, loadActiveBooking, loadLoginTimestamp, saveLoginTimestamp, clearToken } from '../../utils/tokenStorage';
 
 const { width } = Dimensions.get('window');
 
@@ -55,14 +55,38 @@ const SplashScreen: React.FC<SplashScreenProps> = ({ navigation }) => {
       }).start();
     });
 
+    const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
+
     // Navigate to Login after 2.5 seconds
     const timer = setTimeout(async () => {
-      const [token, role] = await Promise.all([loadToken(), loadRole()]);
+      const [token, role, timestamp] = await Promise.all([loadToken(), loadRole(), loadLoginTimestamp()]);
+
       if (token && role) {
+        // Auto-logout if session is older than 3 days
+        if (timestamp && Date.now() - parseInt(timestamp, 10) > THREE_DAYS_MS) {
+          await clearToken();
+          navigation.replace('Login');
+          return;
+        }
+
+        // No timestamp means an existing session before this feature was added;
+        // start the 3-day clock from now instead of forcing an immediate logout.
+        if (!timestamp) {
+          await saveLoginTimestamp();
+        }
+
         if (role === 'rider') {
           navigation.replace('RiderDashboard');
         } else {
-          navigation.replace('CustomerDashboard');
+          const activeBookingId = await loadActiveBooking();
+          if (activeBookingId) {
+            navigation.replace('BookingConfirmed', {
+              booking: { _id: activeBookingId },
+              rider: {},
+            });
+          } else {
+            navigation.replace('CustomerDashboard');
+          }
         }
       } else {
         navigation.replace('Login');

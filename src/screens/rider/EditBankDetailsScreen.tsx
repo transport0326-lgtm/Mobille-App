@@ -9,6 +9,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  Image,
 } from 'react-native';
 import { Text } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -19,6 +20,7 @@ import { RootStackParamList } from '../../navigation/AppNavigator';
 import { Colors } from '../../theme/theme';
 import { addBankDetails } from '../../redux/sagas/bank/addBankDetailsAction';
 import { resetBankDetails } from '../../redux/slices/bankDetailsSlice';
+import { fetchBankDetails } from '../../redux/sagas/bank/fetchBankDetailsAction';
 
 type Props = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'EditBankDetails'>;
@@ -27,23 +29,29 @@ type Props = {
 // ── Validation ────────────────────────────────────────────────────────────────
 
 const isValidHolderName = (v: string) => v.replace(/[^a-zA-Z\s]/g, '').trim().length >= 3;
-const isValidAccNo      = (v: string) => /^[0-9]{9,18}$/.test(v.trim());
-const isValidIFSC       = (v: string) => /^[A-Z]{4}0[A-Z0-9]{6}$/.test(v.trim().toUpperCase());
-const isValidUPI        = (v: string) => v.trim() === '' || /^[\w.\-]+@[\w]+$/.test(v.trim());
+const isValidAccNo = (v: string) => /^[0-9]{9,18}$/.test(v.trim());
+const isValidIFSC = (v: string) => /^[A-Z]{4}0[A-Z0-9]{6}$/.test(v.trim().toUpperCase());
+const isValidUPI = (v: string) => v.trim() === '' || /^[\w.\-]+@[\w]+$/.test(v.trim());
 
 // ── Screen ────────────────────────────────────────────────────────────────────
 
 const EditBankDetailsScreen: React.FC<Props> = ({ navigation }) => {
   const dispatch = useDispatch<AppDispatch>();
   const { loading, success, error } = useSelector((state: RootState) => state.bankDetails);
+  const existingData = useSelector((state: RootState) => state.riderBankDetails.data);
 
-  const [holderName,  setHolderName]  = useState('');
-  const [bankName,    setBankName]    = useState('');
-  const [accountNo,   setAccountNo]   = useState('');
-  const [confirmNo,   setConfirmNo]   = useState('');
-  const [ifscCode,    setIfscCode]    = useState('');
-  const [upiId,       setUpiId]       = useState('');
-  const [accountType, setAccountType] = useState<'savings' | 'current'>('savings');
+  const existingBank = existingData?.bankAccount;
+  const isEditing = !!(existingBank?.accountNumber || existingBank?.bankName);
+
+  const [holderName, setHolderName] = useState(existingBank?.accountHolderName ?? '');
+  const [bankName, setBankName] = useState(existingBank?.bankName ?? '');
+  const [accountNo, setAccountNo] = useState(existingBank?.accountNumber ?? '');
+  const [confirmNo, setConfirmNo] = useState(existingBank?.accountNumber ?? '');
+  const [ifscCode, setIfscCode] = useState(existingBank?.ifscCode ?? '');
+  const [upiId, setUpiId] = useState(existingData?.upiId ?? '');
+  const [accountType, setAccountType] = useState<'savings' | 'current'>(
+    existingBank?.accountType === 'current' ? 'current' : 'savings',
+  );
 
   const [touched, setTouch] = useState<Record<string, boolean>>({});
   const touch = (f: string) => setTouch(p => ({ ...p, [f]: true }));
@@ -51,6 +59,7 @@ const EditBankDetailsScreen: React.FC<Props> = ({ navigation }) => {
   useEffect(() => {
     if (success) {
       dispatch(resetBankDetails());
+      dispatch(fetchBankDetails());
       navigation.goBack();
     }
   }, [success]);
@@ -82,12 +91,12 @@ const EditBankDetailsScreen: React.FC<Props> = ({ navigation }) => {
     setTouch({ holderName: true, bankName: true, accountNo: true, confirmNo: true, ifscCode: true, upiId: true });
     if (!isFormValid || loading) return;
     dispatch(addBankDetails({
-      accountHolderName:    holderName.trim(),
-      bankName:             bankName.trim(),
-      accountNumber:        accountNo.trim(),
+      accountHolderName: holderName.trim(),
+      bankName: bankName.trim(),
+      accountNumber: accountNo.trim(),
       confirmAccountNumber: confirmNo.trim(),
-      ifscCode:             ifscCode.trim().toUpperCase(),
-      upiId:                upiId.trim(),
+      ifscCode: ifscCode.trim().toUpperCase(),
+      upiId: upiId.trim(),
       accountType,
     }));
   };
@@ -98,10 +107,13 @@ const EditBankDetailsScreen: React.FC<Props> = ({ navigation }) => {
 
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn} activeOpacity={0.7}>
-          <Text style={styles.backArrow}>←</Text>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+          <Image
+            source={require('../../assets/icons/arrow.png')}
+            style={styles.backArrow}
+          />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Add Bank Account</Text>
+        <Text style={styles.headerTitle}>{isEditing ? 'Edit Bank Account' : 'Add Bank Account'}</Text>
         <View style={{ width: 36 }} />
       </View>
 
@@ -248,7 +260,7 @@ const EditBankDetailsScreen: React.FC<Props> = ({ navigation }) => {
             disabled={loading}>
             {loading
               ? <ActivityIndicator color={Colors.white} />
-              : <Text style={styles.saveBtnText}>Save Bank Account</Text>}
+              : <Text style={styles.saveBtnText}>{isEditing ? 'Update Bank Account' : 'Save Bank Account'}</Text>}
           </TouchableOpacity>
           <TouchableOpacity style={styles.cancelBtn} onPress={() => navigation.goBack()} activeOpacity={0.7}>
             <Text style={styles.cancelBtnText}>Cancel</Text>
@@ -264,15 +276,37 @@ const EditBankDetailsScreen: React.FC<Props> = ({ navigation }) => {
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: Colors.white },
 
+  // Header
   header: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    backgroundColor: Colors.secondary, paddingHorizontal: 16, paddingVertical: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.secondary,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
   },
-  backBtn:     { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
-  backArrow:   { fontSize: 22, lineHeight: 22, color: Colors.white, fontWeight: '700', includeFontPadding: false },
-  headerTitle: { fontSize: 18, lineHeight: 22, fontWeight: '800', color: Colors.white, includeFontPadding: false },
 
-  scroll:        { flex: 1 },
+  backBtn: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  backArrow: {
+    width: 20,
+    height: 20,
+    resizeMode: 'contain',
+    tintColor: '#fff',
+  },
+
+  headerTitle: {
+    fontSize: 18,
+    color: Colors.white,
+    fontWeight: '700',
+    marginLeft: 12,
+  },
+
+  scroll: { flex: 1 },
   scrollContent: { paddingHorizontal: 16, paddingTop: 20, paddingBottom: 8 },
 
   sectionTitle: { fontSize: 16, fontWeight: '800', color: Colors.textDark, marginBottom: 18 },
@@ -281,8 +315,8 @@ const styles = StyleSheet.create({
 
   fieldGroup: { marginBottom: 14 },
   fieldLabel: { fontSize: 13, fontWeight: '600', color: Colors.textDark, marginBottom: 6 },
-  required:   { color: '#DC2626' },
-  optional:   { color: Colors.textGray, fontWeight: '400' },
+  required: { color: '#DC2626' },
+  optional: { color: Colors.textGray, fontWeight: '400' },
   fieldInput: {
     backgroundColor: Colors.white,
     borderRadius: 10,
@@ -318,7 +352,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.secondary,
     borderColor: Colors.secondary,
   },
-  toggleBtnText:       { fontSize: 14, fontWeight: '600', color: Colors.textGray },
+  toggleBtnText: { fontSize: 14, fontWeight: '600', color: Colors.textGray },
   toggleBtnTextActive: { color: Colors.white },
 
   footer: { paddingHorizontal: 16, paddingBottom: 16, paddingTop: 8, backgroundColor: Colors.white },
@@ -334,8 +368,8 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     marginBottom: 10,
   },
-  saveBtnText:  { color: Colors.white, fontSize: 16, fontWeight: '800' },
-  cancelBtn:    { alignItems: 'center', paddingVertical: 6 },
+  saveBtnText: { color: Colors.white, fontSize: 16, fontWeight: '800' },
+  cancelBtn: { alignItems: 'center', paddingVertical: 6 },
   cancelBtnText: { fontSize: 15, fontWeight: '600', color: Colors.textGray },
 });
 

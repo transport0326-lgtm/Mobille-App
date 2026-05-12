@@ -19,12 +19,15 @@ type Props = {
 };
 
 const DeliveryCompleteScreen: React.FC<Props> = ({ navigation }) => {
-  const etaMinutes = useSelector((state: RootState) => state.acceptBooking.data?.etaMinutes as number | null | undefined);
-  const baseFare     = 30;
-  const distanceKm   = 3.2;
+  const riderActiveData = useSelector((state: RootState) => state.riderActive.data);
+  const etaMinutes   = riderActiveData?.etaMinutes;
+  const booking      = riderActiveData?.booking;
+  const bookingId    = booking?._id ?? '';
+  const distanceKm   = riderActiveData?.distanceKm ?? booking?.distanceKm ?? 3.2;
+  const baseFare     = booking?.fare ?? 30;
+  const platformFee  = booking?.platformFee ?? 5;
   const perKm        = 8;
   const distanceFare = parseFloat((distanceKm * perKm).toFixed(2));
-  const platformFee  = 5;
   const total        = (baseFare + distanceFare + platformFee).toFixed(2);
 
   return (
@@ -99,7 +102,12 @@ const DeliveryCompleteScreen: React.FC<Props> = ({ navigation }) => {
         <TouchableOpacity
           style={styles.payBtn}
           activeOpacity={0.85}
-          onPress={() => navigation.navigate('RateDelivery')}>
+          onPress={() => navigation.navigate('RateDelivery', {
+            bookingId,
+            vehicleType: booking?.vehicleType,
+            bookingNumber: booking?.bookingNumber,
+            total: parseFloat(total),
+          })}>
           <Text style={styles.payBtnText}>Pay</Text>
         </TouchableOpacity>
       </View>

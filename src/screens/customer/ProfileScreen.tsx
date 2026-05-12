@@ -74,6 +74,9 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({
   const { loading: deleting, success: deleteSuccess, error: deleteError } =
     useSelector((state: RootState) => state.deleteAccount);
 
+  const trackBookingStatus = useSelector((state: RootState) => state.booking.trackBooking.data?.booking?.status);
+  const hasActiveBooking = !!trackBookingStatus && !['completed', 'cancelled'].includes(trackBookingStatus);
+
   React.useEffect(() => {
     if (deleteSuccess) {
       dispatch(resetDeleteAccount());
@@ -125,23 +128,27 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({
 
       {/* Menu Items */}
       <View style={styles.menu}>
-        {MENU_ITEMS.map((item, index) => (
-          <TouchableOpacity
-            key={item.id}
-            style={[
-              styles.menuItem,
-              index < MENU_ITEMS.length - 1 && styles.menuItemBorder,
-            ]}
-            // ✅ FIX: Simple function call — koi inline ternary nahi
-            onPress={() => handleMenuPress(item.id)}
-            activeOpacity={0.7}>
-            <Image source={item.icon} style={styles.menuIcon} />
-            <Text style={[styles.menuLabel]}>
-              {item.label}
-            </Text>
-            <Text style={styles.chevron}>{'›'}</Text>
-          </TouchableOpacity>
-        ))}
+        {MENU_ITEMS.map((item, index) => {
+          const isDisabled = item.id === 'delete' && hasActiveBooking;
+          return (
+            <TouchableOpacity
+              key={item.id}
+              style={[
+                styles.menuItem,
+                index < MENU_ITEMS.length - 1 && styles.menuItemBorder,
+                isDisabled && styles.menuItemDisabled,
+              ]}
+              onPress={() => handleMenuPress(item.id)}
+              activeOpacity={0.7}
+              disabled={isDisabled}>
+              <Image source={item.icon} style={[styles.menuIcon, isDisabled && styles.menuIconDisabled]} />
+              <Text style={[styles.menuLabel, isDisabled && styles.menuLabelDisabled]}>
+                {item.label}
+              </Text>
+              <Text style={styles.chevron}>{'›'}</Text>
+            </TouchableOpacity>
+          );
+        })}
       </View>
 
       {/* Delete Account Modal */}
@@ -262,6 +269,9 @@ const styles = StyleSheet.create({
   menuLabelDanger: {
     color: '#DC2626',
   },
+  menuItemDisabled: { opacity: 0.4 },
+  menuIconDisabled: { tintColor: Colors.textGray },
+  menuLabelDisabled: { color: Colors.textGray },
   chevron: {
     fontSize: 20,
     color: Colors.textGray,

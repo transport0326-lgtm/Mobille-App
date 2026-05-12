@@ -34,7 +34,8 @@ export function* registerSaga({ payload }: RegisterPayload): Generator<any, void
     if (response.data?.token) {
       try {
         yield call(saveToken, response.data.token);
-        if (response.data.role) yield call(saveRole, response.data.role);
+        const resolvedRole = response.data.role || response.data.userType;
+        if (resolvedRole) yield call(saveRole, resolvedRole);
       } catch (storageError) {
         console.warn('[Register] Failed to persist token:', storageError);
       }

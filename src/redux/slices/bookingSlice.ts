@@ -37,10 +37,13 @@ export interface TrackBookingData {
   };
   rider: any | null;
   riderLocation: { lat: number; lng: number } | null;
+  distanceKm: number | null;
+  etaMinutes: number | null;
 }
 
 interface BookingState {
   coords: BookingCoords;
+  skipRestore: boolean;
   fareEstimate: {
     loading: boolean;
     data:    FareEstimateData | null;
@@ -67,6 +70,7 @@ const initialState: BookingState = {
     dropoffLat: null,
     dropoffLng: null,
   },
+  skipRestore: false,
   fareEstimate: {
     loading: false,
     data:    null,
@@ -96,8 +100,12 @@ const bookingSlice = createSlice({
     resetFareEstimate(state) {
       state.fareEstimate = initialState.fareEstimate;
     },
+    setCustomerSkipRestore(state) {
+      state.skipRestore = true;
+    },
     resetBooking(state) {
       state.coords         = initialState.coords;
+      state.skipRestore    = false;
       state.fareEstimate   = initialState.fareEstimate;
       state.createBooking  = initialState.createBooking;
       state.trackBooking   = initialState.trackBooking;
@@ -192,5 +200,5 @@ const bookingSlice = createSlice({
   },
 });
 
-export const { setBookingCoords, resetFareEstimate, resetBooking, resetCreateBooking, resetTrackBooking } = bookingSlice.actions;
+export const { setBookingCoords, resetFareEstimate, resetBooking, resetCreateBooking, resetTrackBooking, setCustomerSkipRestore } = bookingSlice.actions;
 export default bookingSlice.reducer;

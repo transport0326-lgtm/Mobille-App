@@ -5,12 +5,14 @@ const BOOKING_BASE_URL = 'https://api.transpport.com';
 const USER_BASE_URL    = 'https://api.transpport.com';
 const RIDER_BASE_URL   = 'https://api.transpport.com';
 const BASE_URL2        = 'https://api.transpport.com';
+const SUPPORT_BASE_URL = 'https://api.transpport.com';
 
 // const BASE_URL         = 'http://10.0.2.2:3000';
 // const BOOKING_BASE_URL = 'http://10.0.2.2:3003';
 // const USER_BASE_URL    = 'http://10.0.2.2:3001';
 // const RIDER_BASE_URL   = 'http://10.0.2.2:3002';
-// const BASE_URL2 = 'http://10.0.2.2:3004';
+// const BASE_URL2        = 'http://10.0.2.2:3004';
+// const SUPPORT_BASE_URL = 'http://10.0.2.2:3005';
 
 // ─── Endpoints ───────────────────────────────────────────────────────────────
 
@@ -41,9 +43,11 @@ export const API_ENDPOINTS = {
   BOOKING_TRACK: 'bookings',
   CHAT_MESSAGES: (bookingId: string) => `chat/${bookingId}/messages`,
   RIDER_EARNINGS: 'bookings/rider/earnings',
+  RIDER_DOCUMENTS: 'riders/documents',
+  SUPPORT_MESSAGES: 'support/messages',
 } as const;
 
-export { BOOKING_BASE_URL, USER_BASE_URL, RIDER_BASE_URL ,BASE_URL2 ,BASE_URL};
+export { BOOKING_BASE_URL, USER_BASE_URL, RIDER_BASE_URL, BASE_URL2, BASE_URL, SUPPORT_BASE_URL };
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -104,6 +108,13 @@ export const apiRequest = async <T = unknown>(
     headers['Content-Type'] = 'application/json';
   }
 
+  if (!_authToken) {
+    // Safety net: restore token from AsyncStorage if in-memory slot is empty (e.g. after app restart race)
+    try {
+      const stored = await AsyncStorage.getItem('authToken');
+      if (stored) _authToken = stored;
+    } catch (_) {}
+  }
   if (_authToken) {
     headers['Authorization'] = `Bearer ${_authToken}`;
   }

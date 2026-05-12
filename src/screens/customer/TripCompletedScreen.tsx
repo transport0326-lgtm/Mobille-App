@@ -18,6 +18,7 @@ import { resetAcceptBooking } from '../../redux/slices/acceptBookingSlice';
 import { resetTrackBooking } from '../../redux/slices/bookingSlice';
 import { useSelector } from 'react-redux';
 import type { RootState } from '../../redux/store';
+import { resetRiderActive } from '../../redux/slices/riderActiveSlice';
 
 type Props = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'TripCompleted'>;
@@ -27,16 +28,17 @@ const TripCompletedScreen: React.FC<Props> = ({ navigation }) => {
   const booking = useSelector((state: any) => state.verifyBookingOtp.data?.booking);
   const fullData = useSelector((state: RootState) => state.verifyBookingOtp);
 
-useEffect(() => {
-  console.log('FULL VERIFY STATE:', JSON.stringify(fullData));
-}, [fullData]);
+  useEffect(() => {
+    console.log('FULL VERIFY STATE:', JSON.stringify(fullData));
+  }, [fullData]);
 
   const handleBackToHome = () => {
     dispatch(resetUpdateBookingStatus());
     dispatch(resetAcceptBooking());
     dispatch(resetVerifyOtpState());
     dispatch(resetTrackBooking());
-    navigation.reset({ index: 0, routes: [{ name: 'RiderDashboard' }] });
+    dispatch(resetRiderActive());
+    navigation.reset({ index: 0, routes: [{ name: 'RiderDashboard', params: { skipRestore: true } }] });
   };
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>

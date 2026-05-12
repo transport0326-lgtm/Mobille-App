@@ -28,6 +28,8 @@ import rejectBookingReducer from './slices/rejectBookingSlice';
 import cancelBookingReducer from './slices/cancelBookingSlice';
 import chatReducer from './slices/chatSlice';
 import earningsReducer from './slices/earningsSlice';
+import riderDocumentsReducer from './slices/riderDocumentsSlice';
+import userSupportMessagesReducer from './slices/userSupportMessagesSlice';
 
 const sagaMiddleware = createSagaMiddleware();
 
@@ -70,6 +72,8 @@ const store = configureStore({
     cancelBooking: cancelBookingReducer,
     chat: chatReducer,
     earnings: earningsReducer,
+    riderDocuments: riderDocumentsReducer,
+    userSupportMessages: userSupportMessagesReducer,
   },
   middleware: getDefaultMiddleware => {
     const base = getDefaultMiddleware({

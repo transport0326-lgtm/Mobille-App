@@ -1,6 +1,7 @@
 import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import NoInternetModal from '../components/NoInternetModal';
 
 // Shared
 import SplashScreen from '../screens/shared/SplashScreen';
@@ -45,6 +46,7 @@ import RiderEditProfileScreen from '../screens/rider/RiderEditProfileScreen';
 import DeliveryCompleteScreen from '../screens/rider/DeliveryCompleteScreen';
 import RiderNotificationsScreen from '../screens/rider/RiderNotificationsScreen';
 import RiderChatScreen from '../screens/rider/RiderChatScreen';
+import RiderBookingCancelledScreen from '../screens/rider/RiderBookingCancelledScreen';
 
 export type RootStackParamList = {
   Splash: undefined;
@@ -118,7 +120,7 @@ export type RootStackParamList = {
   HelpSupport: undefined;
   LiveChat: undefined;
   Language: undefined;
-  RiderDashboard: undefined;
+  RiderDashboard: { skipRestore?: boolean } | undefined;
   GoingToPickup: undefined;
   DeliveringParcel: undefined;
   VerifyDeliveryOTP: undefined;
@@ -134,6 +136,19 @@ export type RootStackParamList = {
   RiderBankPayment: undefined;
   RiderEditProfile: undefined;
   Notifications: undefined;
+  RiderBookingCancelled: {
+    cancelled?: {
+      _id: string;
+      bookingNumber: string;
+      pickupAddress: string;
+      dropoffAddress: string;
+      fare: number;
+      cancelReason: string;
+      cancelledAt: string;
+      customer: { name: string; phone: string };
+      receiver: { name: string; phone: string };
+    };
+  } | undefined;
   RiderChat: {
     customerName: string;
     bookingNumber: string;
@@ -156,6 +171,7 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 
 const AppNavigator: React.FC = () => {
   return (
+    <>
     <NavigationContainer>
       <Stack.Navigator
         initialRouteName="Splash"
@@ -196,8 +212,11 @@ const AppNavigator: React.FC = () => {
         <Stack.Screen name="MapPicker" component={MapPickerScreen} />
         <Stack.Screen name="Notifications" component={RiderNotificationsScreen} />
         <Stack.Screen name="RiderChat" component={RiderChatScreen} />
+        <Stack.Screen name="RiderBookingCancelled" component={RiderBookingCancelledScreen} />
       </Stack.Navigator>
     </NavigationContainer>
+    <NoInternetModal />
+    </>
   );
 };
 

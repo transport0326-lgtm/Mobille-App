@@ -39,7 +39,7 @@ const OTPScreen: React.FC<OTPScreenProps> = ({ navigation, route }) => {
   );
 
   const [otp, setOtp] = useState<string[]>(new Array(OTP_LENGTH).fill(''));
-  const [timer, setTimer] = useState(45);
+  const [timer, setTimer] = useState(300);
   const [canResend, setCanResend] = useState(false);
   const inputRefs = useRef<(TextInput | null)[]>([]);
 
@@ -108,7 +108,7 @@ const OTPScreen: React.FC<OTPScreenProps> = ({ navigation, route }) => {
   const handleResend = () => {
     if (!canResend) return;
     setOtp(new Array(OTP_LENGTH).fill(''));
-    setTimer(45);
+    setTimer(300);
     setCanResend(false);
     inputRefs.current[0]?.focus();
     dispatch(sendOtp({ phone: phoneNumber }));
@@ -142,7 +142,6 @@ const OTPScreen: React.FC<OTPScreenProps> = ({ navigation, route }) => {
             style={styles.backArrow}
           />
         </TouchableOpacity>
-
         <Text style={styles.headerTitle}>Verify OTP</Text>
       </View>
 

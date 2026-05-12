@@ -8,6 +8,7 @@ type AppHeaderProps = {
   name?: string;
   subtitle?: string;
   showBell?: boolean;
+  hasUnread?: boolean;
   onBellPress?: () => void;
 };
 
@@ -15,6 +16,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({
   name,
   subtitle,
   showBell = false,
+  hasUnread = false,
   onBellPress,
 }) => (
   <View style={styles.container}>
@@ -29,7 +31,10 @@ const AppHeader: React.FC<AppHeaderProps> = ({
           onPress={onBellPress}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           activeOpacity={0.7}>
-          <Ionicons name="notifications-outline" size={26} color={Colors.white} />
+          <View>
+            <Ionicons name="notifications-outline" size={26} color={Colors.white} />
+            {hasUnread && <View style={styles.dot} />}
+          </View>
         </TouchableOpacity>
       )}
     </View>
@@ -75,6 +80,17 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: 'rgba(255,255,255,0.7)',
     marginTop: 2,
+  },
+  dot: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    width: 9,
+    height: 9,
+    borderRadius: 5,
+    backgroundColor: '#22C55E',
+    borderWidth: 1.5,
+    borderColor: Colors.secondary,
   },
 });
 

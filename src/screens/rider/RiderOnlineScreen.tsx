@@ -45,6 +45,7 @@ const RiderOnlineScreen: React.FC<RiderOnlineScreenProps> = ({ navigation }) => 
 
   useEffect(() => {
     if (acceptSuccess) {
+      dispatch(resetAcceptBooking());
       navigation.navigate('GoingToPickup');
     }
   }, [acceptSuccess]);
@@ -137,8 +138,8 @@ const RiderOnlineScreen: React.FC<RiderOnlineScreenProps> = ({ navigation }) => 
         visible={modalVisible}
         request={{
           bookingId: activeBooking?._id ?? '',
-          distance: activeBooking?.distanceKm
-            ? `${activeBooking.distanceKm.toFixed(2)} km`
+          distance: activeData?.distanceKm
+            ? `${activeData.distanceKm.toFixed(2)} km`
             : 'Calculating...',
           fare: activeBooking?.fare ?? 0,
           vehicle: activeBooking?.vehicleType ?? '',

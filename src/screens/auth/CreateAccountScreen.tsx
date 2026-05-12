@@ -10,6 +10,8 @@ import {
   TextInput as RNTextInput,
   Alert,
   Image,
+  PermissionsAndroid,
+  ActivityIndicator,
 } from 'react-native';
 import { Text } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -19,10 +21,12 @@ import { useDispatch, useSelector } from 'react-redux';
 import { RootStackParamList } from '../../navigation/AppNavigator';
 import { Colors } from '../../theme/theme';
 import { launchImageLibrary, launchCamera } from 'react-native-image-picker';
+import Geolocation from 'react-native-geolocation-service';
+import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { register } from '../../redux/sagas/register/registerAction';
 import { resetRegister } from '../../redux/slices/registerSlice';
 import { uploadDocument } from '../../redux/sagas/register/uploadAction';
-import { searchSuggestions, type Suggestion } from '../../utils/mapProviders';
+import { searchSuggestions, reverseGeocode, type Suggestion } from '../../utils/mapProviders';
 import type { RootState, AppDispatch } from '../../redux/store';
 
 type CreateAccountScreenProps = {
@@ -64,6 +68,7 @@ const CreateAccountScreen: React.FC<CreateAccountScreenProps> = ({ navigation, r
   const [deliveryAddress, setDeliveryAddress] = useState('');
   const [locationSuggestions, setLocationSuggestions] = useState<Suggestion[]>([]);
   const [locationLoading, setLocationLoading] = useState(false);
+  const [detectingLocation, setDetectingLocation] = useState(false);
   const debounceRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Mappls Places Search — 350 ms debounce
@@ -85,6 +90,37 @@ const CreateAccountScreen: React.FC<CreateAccountScreenProps> = ({ navigation, r
   const handleSelectSuggestion = (item: Suggestion) => {
     setDeliveryAddress(item.address ? `${item.name}, ${item.address}` : item.name);
     setLocationSuggestions([]);
+  };
+
+  const handleDetectLocation = async () => {
+    setDetectingLocation(true);
+    try {
+      if (Platform.OS === 'android') {
+        const granted = await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+        );
+        if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
+          Alert.alert('Permission Denied', 'Location permission is required.');
+          setDetectingLocation(false);
+          return;
+        }
+      }
+      Geolocation.getCurrentPosition(
+        async pos => {
+          const addr = await reverseGeocode(pos.coords.latitude, pos.coords.longitude);
+          setDeliveryAddress(addr);
+          setLocationSuggestions([]);
+          setDetectingLocation(false);
+        },
+        () => {
+          Alert.alert('Error', 'Could not detect your location. Please try again.');
+          setDetectingLocation(false);
+        },
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
+      );
+    } catch {
+      setDetectingLocation(false);
+    }
   };
 
   // Navigate on success
@@ -375,46 +411,83 @@ const CreateAccountScreen: React.FC<CreateAccountScreenProps> = ({ navigation, r
                 </TouchableOpacity>
               </View>
 
-              {/* ── Delivery Location ── */}
-              <View style={styles.deliveryCard}>
-                <Text style={styles.riderCardTitle}>Delivery Location</Text>
-                <Text style={styles.deliverySubtitle}>Search your delivery area</Text>
+              {/* ── Add Your Address ── */}
+              <View style={styles.addressHeader}>
+                <Text style={styles.addressHeaderTitle}>Add Your Address</Text>
+                <Text style={styles.addressHeaderSub}>Search your area or use current location</Text>
+              </View>
 
+              <View style={styles.locationSection}>
                 {/* Search input */}
-                <View style={styles.riderInput}>
-                  <Text style={styles.inputIcon}>🔍</Text>
-                  <RNTextInput
-                    style={styles.input}
-                    placeholder="Search delivery area"
-                    placeholderTextColor="#AAAAAA"
-                    value={deliveryAddress}
-                    onChangeText={setDeliveryAddress}
-                  />
+                <View style={styles.locationInputRow}>
+                  <MaterialIcons name="search" size={20} color="#808080" />
+                  <View style={{ flex: 1 }}>
+                    <RNTextInput
+                      style={styles.locationInputText}
+                      placeholder="Search area, city or pin code..."
+                      placeholderTextColor="#9E9E9E"
+                      value={deliveryAddress}
+                      onChangeText={setDeliveryAddress}
+                    />
+                    <Text style={styles.poweredBy}>
+                      {'Powered by '}<Text style={styles.poweredByGoogle}>Google</Text>
+                    </Text>
+                  </View>
                 </View>
 
-                {/* Autocomplete suggestions */}
+                {/* Suggestions list */}
                 {(locationLoading || locationSuggestions.length > 0) && (
-                  <View style={styles.suggestionsBox}>
+                  <View style={styles.suggestList}>
                     {locationLoading ? (
-                      <Text style={styles.dropdownItemText}>Searching…</Text>
+                      <ActivityIndicator size="small" color={Colors.primary} style={{ marginVertical: 14 }} />
                     ) : (
-                      locationSuggestions.map(item => (
-                        <TouchableOpacity
-                          key={item.id}
-                          style={styles.suggestionRow}
-                          onPress={() => handleSelectSuggestion(item)}
-                          activeOpacity={0.7}>
-                          <Text style={styles.suggestionName}>{item.name}</Text>
-                          {!!item.address && (
-                            <Text style={styles.suggestionAddress} numberOfLines={1}>
-                              {item.address}
+                      locationSuggestions.map((item, i) => (
+                        <React.Fragment key={item.id}>
+                          <TouchableOpacity
+                            style={[styles.suggestItem, i === 0 && styles.suggestItemFirst]}
+                            onPress={() => handleSelectSuggestion(item)}
+                            activeOpacity={0.7}>
+                            <MaterialIcons name="location_on" size={16} color="#8C2626" />
+                            <Text
+                              style={[styles.suggestItemText, i === 0 && styles.suggestItemTextFirst]}
+                              numberOfLines={1}>
+                              {item.address ? `${item.name}, ${item.address}` : item.name}
                             </Text>
+                            {i === 0 && <MaterialIcons name="north_west" size={11} color="#808080" />}
+                          </TouchableOpacity>
+                          {i < locationSuggestions.length - 1 && (
+                            <View style={styles.suggestDivider} />
                           )}
-                        </TouchableOpacity>
+                        </React.Fragment>
                       ))
                     )}
                   </View>
                 )}
+
+                {/* OR divider */}
+                <View style={styles.orRow}>
+                  <View style={styles.orLine} />
+                  <Text style={styles.orText}>OR</Text>
+                  <View style={styles.orLine} />
+                </View>
+
+                {/* Use Current Location */}
+                <TouchableOpacity
+                  style={styles.useLocBtn}
+                  onPress={handleDetectLocation}
+                  disabled={detectingLocation}
+                  activeOpacity={0.85}>
+                  <View style={styles.useLocIconBox}>
+                    {detectingLocation
+                      ? <ActivityIndicator size="small" color={Colors.white} />
+                      : <MaterialIcons name="my_location" size={15} color={Colors.white} />}
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.useLocTitle}>Use Current Location</Text>
+                    <Text style={styles.useLocSub}>Auto-detect using GPS</Text>
+                  </View>
+                  <MaterialIcons name="chevron_right" size={18} color={Colors.secondary} />
+                </TouchableOpacity>
               </View>
             </>
           )}
@@ -540,12 +613,97 @@ const styles = StyleSheet.create({
   uploadDoneText: { fontSize: 13, fontWeight: '600', color: Colors.textDark, marginBottom: 2, maxWidth: '80%' },
   uploadChangeText: { fontSize: 11, color: Colors.textGray },
 
-  // Delivery card
-  deliveryCard: {
-    borderWidth: 1.5, borderColor: Colors.secondary, borderRadius: 12,
-    padding: 16, marginBottom: 24, backgroundColor: Colors.white,
+  // Address header (dark navy card)
+  addressHeader: {
+    backgroundColor: Colors.secondary,
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    marginBottom:10
   },
-  deliverySubtitle: { fontSize: 12, color: Colors.textGray, marginTop: -10, marginBottom: 14 },
+  addressHeaderTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: Colors.white,
+    marginBottom: 4,
+  },
+  addressHeaderSub: {
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.7)',
+  },
+
+  // Location search section
+  locationSection: { gap: 10, marginBottom: 24 },
+
+  locationInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.white,
+    borderWidth: 1.5,
+    borderColor: '#D1D6E0',
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    height: 50,
+    gap: 10,
+  },
+  locationInputText: {
+    fontSize: 12,
+    color: Colors.textDark,
+    padding: 0,
+    margin: 0,
+  },
+  poweredBy: { fontSize: 8, color: '#ADADAD' },
+  poweredByGoogle: { fontSize: 8, fontWeight: '600', color: '#4285F5' },
+
+  // Suggestions list
+  suggestList: {
+    backgroundColor: Colors.white,
+    borderWidth: 1,
+    borderColor: '#D1D6E0',
+    borderRadius: 10,
+    paddingVertical: 4,
+    overflow: 'hidden',
+  },
+  suggestItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 10,
+    backgroundColor: Colors.white,
+  },
+  suggestItemFirst: { backgroundColor: '#F2F7FF' },
+  suggestItemText: { flex: 1, fontSize: 11, color: '#525252' },
+  suggestItemTextFirst: { fontWeight: '600', color: Colors.secondary },
+  suggestDivider: { height: 1, backgroundColor: '#EBEBEB', marginHorizontal: 12 },
+
+  // OR divider
+  orRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 2 },
+  orLine: { flex: 1, height: 1, backgroundColor: '#D6D6D6' },
+  orText: { fontSize: 9, fontWeight: '600', color: '#8C8C8C' },
+
+  // Use Current Location button
+  useLocBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: '#F2F7FF',
+    borderWidth: 1.5,
+    borderColor: Colors.secondary,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    height: 50,
+  },
+  useLocIconBox: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: Colors.secondary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  useLocTitle: { fontSize: 12, fontWeight: '600', color: Colors.secondary },
+  useLocSub: { fontSize: 9, color: '#8C8C8C' },
 
   // Dropdown
   dropdownTrigger: {

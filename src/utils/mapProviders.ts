@@ -1,87 +1,27 @@
-import { MAPPLS_CONFIG } from '../config/map.config';
+import { GOOGLE_MAPS_CONFIG } from '../config/map.config';
 
 export interface LatLng { lat: number; lng: number }
 
 export interface Suggestion {
-  id: string;
+  id: string;       // Google place_id
   name: string;
   address: string;
   lat?: number;
   lng?: number;
 }
 
-// ─── OAuth token cache ────────────────────────────────────────────────────────
+const KEY = GOOGLE_MAPS_CONFIG.API_KEY;
 
-let _token: string | null = null;
-let _tokenExpiry = 0;
-
-async function getToken(): Promise<string | null> {
-  const now = Date.now();
-  if (_token && now < _tokenExpiry) return _token;
-  try {
-    const body = new URLSearchParams({
-      grant_type:    'client_credentials',
-      client_id:     MAPPLS_CONFIG.CLIENT_ID,
-      client_secret: MAPPLS_CONFIG.CLIENT_SECRET,
-    });
-    const res = await fetch('https://outpost.mappls.com/api/security/oauth/token', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body:    body.toString(),
-    });
-    const data = await res.json();
-    if (data?.access_token) {
-      _token       = data.access_token;
-      _tokenExpiry = now + ((data.expires_in ?? 3600) - 60) * 1000;
-      return _token;
-    }
-    return null;
-  } catch {
-    return null;
-  }
-}
-
-// ─── Tile URL ─────────────────────────────────────────────────────────────────
-
-export function getTileUrl(z: number, x: number, y: number): string {
-  return `https://apis.mappls.com/advancedmaps/v1/${MAPPLS_CONFIG.REST_KEY}/still_map/${z}/${x}/${y}.png`;
-}
-
-// ─── Forward geocode — Nominatim ─────────────────────────────────────────────
-
-export async function forwardGeocode(query: string): Promise<LatLng | null> {
-  try {
-    const res = await fetch(
-      `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query.trim())}&format=json&countrycodes=in&limit=1`,
-      { headers: { 'Accept-Language': 'en', 'User-Agent': 'TranspportApp/1.0' } }
-    );
-    const data = await res.json();
-    console.log('🌐 forwardGeocode RAW:', JSON.stringify(data?.[0], null, 2));
-
-    if (data?.[0]?.lat && data?.[0]?.lon) {
-      return {
-        lat: parseFloat(data[0].lat),
-        lng: parseFloat(data[0].lon),
-      };
-    }
-    return null;
-  } catch (err) {
-    console.log('❌ forwardGeocode ERROR:', err);
-    return null;
-  }
-}
-
-// ─── Reverse geocode — Mappls (same as before) ───────────────────────────────
+// ─── Reverse geocode — Google Geocoding API ───────────────────────────────────
 
 export async function reverseGeocode(lat: number, lng: number): Promise<string> {
   try {
     const res = await fetch(
-      `https://apis.mappls.com/advancedmaps/v1/${MAPPLS_CONFIG.REST_KEY}/rev_geocode?lat=${lat}&lng=${lng}&region=IND`,
+      `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${KEY}`,
     );
     const data = await res.json();
-    const result = data?.results?.[0];
-    if (result) {
-      return result.formatted_address || result.locality || result.city || 'Selected Location';
+    if (data.status === 'OK' && data.results?.[0]) {
+      return data.results[0].formatted_address ?? 'Selected Location';
     }
     return 'Selected Location';
   } catch {
@@ -89,39 +29,56 @@ export async function reverseGeocode(lat: number, lng: number): Promise<string> 
   }
 }
 
-// ─── Search suggestions — Nominatim ──────────────────────────────────────────
+// ─── Forward geocode — Google Geocoding API ───────────────────────────────────
+
+export async function forwardGeocode(query: string): Promise<LatLng | null> {
+  try {
+    const res = await fetch(
+      `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(query.trim())}&region=in&key=${KEY}`,
+    );
+    const data = await res.json();
+    if (data.status === 'OK' && data.results?.[0]?.geometry?.location) {
+      const { lat, lng } = data.results[0].geometry.location;
+      return { lat, lng };
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+// ─── Search suggestions — Google Places Autocomplete ─────────────────────────
 
 export async function searchSuggestions(query: string): Promise<Suggestion[]> {
   if (!query || query.trim().length < 2) return [];
   try {
     const res = await fetch(
-      `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query.trim())}&format=json&countrycodes=in&limit=5&addressdetails=1`,
-      { headers: { 'Accept-Language': 'en', 'User-Agent': 'TranspportApp/1.0' } }
+      `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(query.trim())}&components=country:in&key=${KEY}`,
     );
     const data = await res.json();
-    console.log('🔍 Nominatim suggestions RAW:', JSON.stringify(data?.[0], null, 2));
-
-    return (data ?? []).map((item: any) => {
-      const name =
-        item.address?.road ??
-        item.address?.suburb ??
-        item.address?.city ??
-        item.display_name?.split(',')?.[0] ??
-        'Unknown';
-
-      const address = item.display_name ?? '';
-
-      return {
-        id:      item.place_id?.toString() ?? String(Math.random()),
-        name,
-        address,
-        lat:     parseFloat(item.lat),
-        lng:     parseFloat(item.lon),
-      };
-    }).filter((s: Suggestion) => s.lat != null && s.lng != null && !isNaN(s.lat!) && !isNaN(s.lng!));
-
-  } catch (err) {
-    console.log('❌ searchSuggestions ERROR:', err);
+    if (data.status !== 'OK' && data.status !== 'ZERO_RESULTS') return [];
+    return (data.predictions ?? []).map((p: any) => ({
+      id:      p.place_id,
+      name:    p.structured_formatting?.main_text ?? p.description,
+      address: p.structured_formatting?.secondary_text ?? '',
+    }));
+  } catch {
     return [];
+  }
+}
+
+// ─── Place details — resolves place_id → LatLng ───────────────────────────────
+
+export async function getPlaceCoords(placeId: string): Promise<LatLng | null> {
+  try {
+    const res = await fetch(
+      `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=geometry&key=${KEY}`,
+    );
+    const data = await res.json();
+    const loc = data.result?.geometry?.location;
+    if (loc) return { lat: loc.lat, lng: loc.lng };
+    return null;
+  } catch {
+    return null;
   }
 }

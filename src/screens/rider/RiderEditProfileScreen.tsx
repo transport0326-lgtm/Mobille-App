@@ -43,21 +43,22 @@ const RiderEditProfileScreen: React.FC<Props> = ({ navigation }) => {
   const { loading: photoLoading, url: uploadedPhotoUrl } = useSelector((state: RootState) => state.uploadRiderPhoto);
   const rider = data?.rider;
 
-  const [fullName, setFullName]               = useState('');
-  const [phone, setPhone]                     = useState('');
-  const [email, setEmail]                     = useState('');
-  const [vehicleType, setVehicleType]         = useState('');
-  const [vehicleNumber, setVehicleNumber]     = useState('');
+  const [fullName, setFullName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState('');
+  const [vehicleType, setVehicleType] = useState('');
+  const [vehicleNumber, setVehicleNumber] = useState('');
   const [emergencyContact, setEmergencyContact] = useState('');
-  const [photoUri, setPhotoUri]               = useState<string | null>(null);
+  const existingPhotoUrl = rider?.profilePhotoUrl || null;
+  const [photoUri, setPhotoUri] = useState<string | null>(null);
 
   useEffect(() => {
     if (rider) {
-      setFullName(rider.name                    || '');
-      setPhone(rider.phone                      || '');
-      setEmail(rider.email                      || '');
-      setVehicleType(rider.vehicleType          || '');
-      setVehicleNumber(rider.vehicleNumber      || '');
+      setFullName(rider.name || '');
+      setPhone(rider.phone || '');
+      setEmail(rider.email || '');
+      setVehicleType(rider.vehicleType || '');
+      setVehicleNumber(rider.vehicleNumber || '');
       setEmergencyContact(rider.emergencyContact || '');
     }
   }, [rider]);
@@ -69,11 +70,11 @@ const RiderEditProfileScreen: React.FC<Props> = ({ navigation }) => {
     }
   }, [success]);
 
-  const isValidName          = fullName.replace(/[^a-zA-Z]/g, '').length >= 3;
-  const isValidEmail         = (v: string) => /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(v);
-  const isValidPhone         = (v: string) => /^[0-9]{10}$/.test(v.replace(/\s|-/g, ''));
+  const isValidName = fullName.replace(/[^a-zA-Z]/g, '').length >= 3;
+  const isValidEmail = (v: string) => /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(v);
+  const isValidPhone = (v: string) => /^[0-9]{10}$/.test(v.replace(/\s|-/g, ''));
   const isValidVehicleNumber = (v: string) => /^[A-Za-z]{2}-?\d{2}-?[A-Za-z]{0,2}-?\d{4}$/.test(v);
-  const isValidEmergency     = (v: string) => /^[0-9]{10}$/.test(v.replace(/\s|-/g, ''));
+  const isValidEmergency = (v: string) => /^[0-9]{10}$/.test(v.replace(/\s|-/g, ''));
 
   const isFormValid =
     isValidName &&
@@ -84,22 +85,24 @@ const RiderEditProfileScreen: React.FC<Props> = ({ navigation }) => {
 
   const handleSave = () => {
     if (!isFormValid || loading) return;
+    const photoUrl = uploadedPhotoUrl || existingPhotoUrl || undefined;
     dispatch(updateRiderProfile({
-      name:             fullName.trim(),
-      phone:            phone.trim(),
-      email:            email.trim(),
-      vehicleNumber:    vehicleNumber.trim(),
+      name: fullName.trim(),
+      phone: phone.trim(),
+      email: email.trim(),
+      vehicleNumber: vehicleNumber.trim(),
       emergencyContact: emergencyContact.trim(),
+      ...(photoUrl ? { profilePhotoUrl: photoUrl } : {}),
     }));
   };
 
   const dispatchUpload = (asset: { uri: string; fileName?: string | null; type?: string | null }) => {
     setPhotoUri(asset.uri);
     dispatch(uploadRiderPhoto({
-      phone:    rider?.phone || phone,
-      fileUri:  asset.uri,
+      phone: rider?.phone || phone,
+      fileUri: asset.uri,
       fileName: asset.fileName || 'photo.jpg',
-      fileType: asset.type    || 'image/jpeg',
+      fileType: asset.type || 'image/jpeg',
     }));
   };
 
@@ -131,11 +134,13 @@ const RiderEditProfileScreen: React.FC<Props> = ({ navigation }) => {
 
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn} activeOpacity={0.7}>
-          <Text style={styles.backArrow}>{'←'}</Text>
-        </TouchableOpacity>
+              <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+                <Image
+                  source={require('../../assets/icons/arrow.png')}
+                  style={styles.backArrow}
+                />
+              </TouchableOpacity>
         <Text style={styles.headerTitle}>Edit Profile</Text>
-        <View style={{ width: 36 }} />
       </View>
 
       <KeyboardAvoidingView
@@ -154,8 +159,8 @@ const RiderEditProfileScreen: React.FC<Props> = ({ navigation }) => {
                 <View style={styles.avatarCircle}>
                   <ActivityIndicator color={Colors.secondary} />
                 </View>
-              ) : uploadedPhotoUrl || photoUri ? (
-                <Image source={{ uri: uploadedPhotoUrl || photoUri! }} style={styles.avatarImage} />
+              ) : uploadedPhotoUrl || photoUri || existingPhotoUrl ? (
+                <Image source={{ uri: uploadedPhotoUrl || photoUri || existingPhotoUrl! }} style={styles.avatarImage} />
               ) : (
                 <View style={styles.avatarCircle}>
                   <Text style={styles.avatarText}>{fullName ? getInitials(fullName) : '?'}</Text>
@@ -177,7 +182,7 @@ const RiderEditProfileScreen: React.FC<Props> = ({ navigation }) => {
               <TextInput
                 style={styles.fieldInput}
                 value={fullName}
-                onChangeText={setFullName}
+                onChangeText={v => setFullName(v.replace(/[^a-zA-Z ]/g, ''))}
                 placeholder="Enter your name"
                 placeholderTextColor="#AAAAAA"
                 autoCapitalize="words"
@@ -192,10 +197,11 @@ const RiderEditProfileScreen: React.FC<Props> = ({ navigation }) => {
               <TextInput
                 style={styles.fieldInput}
                 value={phone}
-                onChangeText={setPhone}
+                onChangeText={v => setPhone(v.replace(/[^0-9]/g, '').slice(0, 10))}
                 placeholder="Enter your phone number"
                 placeholderTextColor="#AAAAAA"
-                keyboardType="phone-pad"
+                keyboardType="number-pad"
+                maxLength={10}
               />
               {phone.length > 0 && !isValidPhone(phone) && (
                 <Text style={styles.fieldError}>Enter a valid 10-digit phone number</Text>
@@ -221,28 +227,23 @@ const RiderEditProfileScreen: React.FC<Props> = ({ navigation }) => {
             <View style={styles.fieldGroup}>
               <Text style={styles.fieldLabel}>Vehicle Type</Text>
               <TextInput
-                style={styles.fieldInput}
+                style={[styles.fieldInput, styles.fieldInputDisabled]}
                 value={vehicleType}
-                onChangeText={setVehicleType}
+                editable={false}
                 placeholder="e.g. Bike, Auto"
                 placeholderTextColor="#AAAAAA"
-                autoCapitalize="words"
               />
             </View>
 
             <View style={styles.fieldGroup}>
               <Text style={styles.fieldLabel}>Vehicle Number</Text>
               <TextInput
-                style={styles.fieldInput}
+                style={[styles.fieldInput, styles.fieldInputDisabled]}
                 value={vehicleNumber}
-                onChangeText={setVehicleNumber}
+                editable={false}
                 placeholder="e.g. WB-02-AB-3456"
                 placeholderTextColor="#AAAAAA"
-                autoCapitalize="characters"
               />
-              {vehicleNumber.length > 0 && !isValidVehicleNumber(vehicleNumber) && (
-                <Text style={styles.fieldError}>Enter a valid vehicle number (e.g. KA-01-AB-1234)</Text>
-              )}
             </View>
 
             <View style={styles.fieldGroup}>
@@ -250,10 +251,11 @@ const RiderEditProfileScreen: React.FC<Props> = ({ navigation }) => {
               <TextInput
                 style={styles.fieldInput}
                 value={emergencyContact}
-                onChangeText={setEmergencyContact}
+                onChangeText={v => setEmergencyContact(v.replace(/[^0-9]/g, '').slice(0, 10))}
                 placeholder="Enter emergency contact number"
                 placeholderTextColor="#AAAAAA"
-                keyboardType="phone-pad"
+                keyboardType="number-pad"
+                maxLength={10}
               />
               {emergencyContact.length > 0 && !isValidEmergency(emergencyContact) && (
                 <Text style={styles.fieldError}>Enter a valid 10-digit phone number</Text>
@@ -286,33 +288,34 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
   },
 
+  // Header
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     backgroundColor: Colors.secondary,
     paddingHorizontal: 16,
     paddingVertical: 14,
   },
+
   backBtn: {
-    width: 36,
-    height: 36,
+    width: 40,
+    height: 40,
     alignItems: 'center',
     justifyContent: 'center',
   },
+
   backArrow: {
-    fontSize: 22,
-    lineHeight: 22,
-    color: Colors.white,
-    fontWeight: '700',
-    includeFontPadding: false,
+    width: 20,
+    height: 20,
+    resizeMode: 'contain',
+    tintColor: '#fff',
   },
+
   headerTitle: {
     fontSize: 18,
-    lineHeight: 22,
-    fontWeight: '800',
     color: Colors.white,
-    includeFontPadding: false,
+    fontWeight: '700',
+    marginLeft: 12,
   },
 
   scroll: { flex: 1 },

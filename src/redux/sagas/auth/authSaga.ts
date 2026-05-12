@@ -3,7 +3,7 @@ import { SagaActions, SagaActionType } from '../index';
 import { apiRequest } from '../../../config/api.config';
 import API_ENDPOINTS from '../../../config/api.config';
 import { SendOtpPayload, VerifyOtpPayload } from './authAction';
-import { saveToken, saveRole } from '../../../utils/tokenStorage';
+import { saveToken, saveRole, saveLoginTimestamp } from '../../../utils/tokenStorage';
 import { setAuthToken } from '../../../config/api.config';
 
 // ─── Send OTP ─────────────────────────────────────────────────────────────────
@@ -63,7 +63,9 @@ export function* verifyOtpSaga({ payload }: VerifyOtpPayload): Generator<any, vo
 
       try {
         yield call(saveToken, response.data.token);
-        if (response.data.role) yield call(saveRole, response.data.role);
+        const resolvedRole = response.data.isRider ? 'rider' : 'user';
+        yield call(saveRole, resolvedRole);
+        yield call(saveLoginTimestamp);
       } catch (storageError) {
         console.warn('[Auth] Failed to persist token:', storageError);
       }

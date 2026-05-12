@@ -28,9 +28,19 @@ export function* uploadRiderPhotoSaga({ payload }: UploadRiderPhotoPayload): Gen
 
     if (!response) throw new Error('Empty response');
 
+    const url =
+      response.data?.url ||
+      response.data?.photoUrl ||
+      response.data?.imageUrl ||
+      response.data?.photo ||
+      response.data?.fileUrl ||
+      '';
+    console.log('[uploadRiderPhoto] response.data:', JSON.stringify(response.data));
+    console.log('[uploadRiderPhoto] resolved url:', url);
+
     yield put({
       type: `${SagaActions.UPLOAD_RIDER_PHOTO}_${SagaActionType.SUCCESS}`,
-      payload: response.data?.url || '',
+      payload: url,
     });
   } catch (error: any) {
     yield put({

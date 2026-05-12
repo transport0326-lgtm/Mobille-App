@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   ScrollView,
   ActivityIndicator,
+  Image,
 } from 'react-native';
 import { Text } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -36,16 +37,18 @@ const RiderBankPaymentScreen: React.FC<Props> = ({ navigation }) => {
     dispatch(fetchBankDetails());
   }, []);
 
-  const balance   = data?.availableBalance ?? 0;
-  const thisWeek  = data?.earnings?.thisWeek  ?? 0;
+  const balance = data?.availableBalance ?? 0;
+  const thisWeek = data?.earnings?.thisWeek ?? 0;
   const thisMonth = data?.earnings?.thisMonth ?? 0;
-  const pending   = data?.earnings?.pending   ?? 0;
+  const pending = data?.earnings?.pending ?? 0;
 
-  const bank      = data?.bankAccount;
-  const bankName  = bank?.bankName      ?? '—';
-  const accNo     = bank?.accountNumber ? `●●●● ●●●● ${String(bank.accountNumber).slice(-4)}` : '—';
-  const ifsc      = bank?.ifscCode      ?? '—';
-  const upiId     = data?.upiId || '—';
+  const bank = data?.bankAccount;
+  const hasBankData = !!(bank?.accountNumber || bank?.bankName);
+  const bankName = bank?.bankName ?? '—';
+  const accNo = bank?.accountNumber ? `●●●● ●●●● ${String(bank.accountNumber).slice(-4)}` : '—';
+  const ifsc = bank?.ifscCode ?? '—';
+  const upiId = data?.upiId || '—';
+  const hasUpi = !!(data?.upiId);
   const payouts: any[] = data?.recentPayouts ?? [];
 
   return (
@@ -54,11 +57,13 @@ const RiderBankPaymentScreen: React.FC<Props> = ({ navigation }) => {
 
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn} activeOpacity={0.7}>
-          <Text style={styles.backArrow}>←</Text>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+          <Image
+            source={require('../../assets/icons/arrow.png')}
+            style={styles.backArrow}
+          />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Bank & Payment Details</Text>
-        <View style={{ width: 36 }} />
       </View>
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
@@ -88,26 +93,25 @@ const RiderBankPaymentScreen: React.FC<Props> = ({ navigation }) => {
             </View>
           </View>
 
-          <TouchableOpacity style={styles.withdrawBtn} activeOpacity={0.85}>
-            <Text style={styles.withdrawBtnText}>Withdraw to Bank</Text>
-          </TouchableOpacity>
         </View>
 
         {/* Linked Bank Account */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Linked Bank Account</Text>
-            <TouchableOpacity
-              onPress={() => navigation.navigate('EditBankDetails')}
-              activeOpacity={0.7}
-              style={styles.editBtn}>
-              <Text style={styles.editBtnText}>Edit ✏️</Text>
-            </TouchableOpacity>
+            {!loading && hasBankData && (
+              <TouchableOpacity
+                onPress={() => navigation.navigate('EditBankDetails')}
+                activeOpacity={0.7}
+                style={styles.editBtn}>
+                <Text style={styles.editBtnText}>Edit ✏️</Text>
+              </TouchableOpacity>
+            )}
           </View>
 
           {loading ? (
             <ActivityIndicator size="small" color={Colors.primary} style={{ marginVertical: 12 }} />
-          ) : bank ? (
+          ) : hasBankData ? (
             <View style={styles.bankCard}>
               <View style={styles.bankCardLeft}>
                 <View style={styles.bankIconBox}>
@@ -119,37 +123,35 @@ const RiderBankPaymentScreen: React.FC<Props> = ({ navigation }) => {
                   <Text style={styles.bankIfsc}>IFSC: {ifsc}</Text>
                 </View>
               </View>
-              <Text style={styles.verifiedIcon}>✅</Text>
+              {/* <Text style={styles.verifiedIcon}>✅</Text> */}
             </View>
-          ) : null}
+          ) : (
+            <Text style={styles.emptyMsg}>No bank account linked yet. Add one to receive payments.</Text>
+          )}
 
-          <TouchableOpacity
-            style={styles.addBankBtn}
-            activeOpacity={0.8}
-            onPress={() => navigation.navigate('EditBankDetails')}>
-            <Text style={styles.addBankBtnText}>+ Add Bank Account</Text>
-          </TouchableOpacity>
+          {!loading && !hasBankData && (
+            <TouchableOpacity
+              style={styles.addBankBtn}
+              activeOpacity={0.8}
+              onPress={() => navigation.navigate('EditBankDetails')}>
+              <Text style={styles.addBankBtnText}>+ Add Bank Account</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* UPI ID */}
         <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>UPI ID</Text>
-            <TouchableOpacity
-              onPress={() => navigation.navigate('EditBankDetails')}
-              activeOpacity={0.7}
-              style={styles.editBtn}>
-              <Text style={styles.editBtnText}>Edit ✏️</Text>
-            </TouchableOpacity>
-          </View>
+          <Text style={styles.sectionTitle}>UPI ID</Text>
 
           {loading ? (
-            <ActivityIndicator size="small" color={Colors.primary} />
-          ) : (
-            <View style={styles.upiRow}>
+            <ActivityIndicator size="small" color={Colors.primary} style={{ marginTop: 12 }} />
+          ) : hasUpi ? (
+            <View style={[styles.upiRow, { marginTop: 12 }]}>
               <Text style={styles.upiIcon}>📱</Text>
               <Text style={styles.upiId}>{upiId}</Text>
             </View>
+          ) : (
+            <Text style={styles.emptyMsg}>No UPI ID linked yet.</Text>
           )}
         </View>
 
@@ -184,15 +186,37 @@ const RiderBankPaymentScreen: React.FC<Props> = ({ navigation }) => {
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: Colors.background },
 
+  // Header
   header: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    backgroundColor: Colors.secondary, paddingHorizontal: 16, paddingVertical: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.secondary,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
   },
-  backBtn:     { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
-  backArrow:   { fontSize: 22, lineHeight: 22, color: Colors.white, fontWeight: '700', includeFontPadding: false },
-  headerTitle: { fontSize: 18, lineHeight: 22, fontWeight: '800', color: Colors.white, includeFontPadding: false },
 
-  scroll:        { flex: 1 },
+  backBtn: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  backArrow: {
+    width: 20,
+    height: 20,
+    resizeMode: 'contain',
+    tintColor: '#fff',
+  },
+
+  headerTitle: {
+    fontSize: 18,
+    color: Colors.white,
+    fontWeight: '700',
+    marginLeft: 12,
+  },
+
+  scroll: { flex: 1 },
   scrollContent: { paddingBottom: 32 },
 
   // Balance card
@@ -235,8 +259,8 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   sectionTitle: { fontSize: 15, fontWeight: '800', color: Colors.textDark },
-  editBtn:      { paddingHorizontal: 4 },
-  editBtnText:  { fontSize: 13, fontWeight: '600', color: Colors.primary },
+  editBtn: { paddingHorizontal: 4 },
+  editBtnText: { fontSize: 13, fontWeight: '600', color: Colors.primary },
 
   // Bank card
   bankCard: {
@@ -256,9 +280,9 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   bankIconEmoji: { fontSize: 20 },
-  bankName:  { fontSize: 14, fontWeight: '800', color: Colors.textDark, marginBottom: 2 },
+  bankName: { fontSize: 14, fontWeight: '800', color: Colors.textDark, marginBottom: 2 },
   bankAccNo: { fontSize: 12, color: Colors.textGray, marginBottom: 1 },
-  bankIfsc:  { fontSize: 12, color: Colors.textGray },
+  bankIfsc: { fontSize: 12, color: Colors.textGray },
   verifiedIcon: { fontSize: 20 },
 
   addBankBtn: {
@@ -274,7 +298,7 @@ const styles = StyleSheet.create({
   // UPI
   upiRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   upiIcon: { fontSize: 22 },
-  upiId:   { fontSize: 15, fontWeight: '600', color: Colors.textDark },
+  upiId: { fontSize: 15, fontWeight: '600', color: Colors.textDark },
 
   // Payouts
   payoutRow: {
@@ -284,10 +308,11 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   payoutRowBorder: { borderBottomWidth: 1, borderBottomColor: Colors.borderGray },
-  payoutDate:    { fontSize: 13, fontWeight: '600', color: Colors.textDark, marginBottom: 3 },
-  payoutStatus:  { fontSize: 12, color: '#16A34A', fontWeight: '600' },
-  payoutAmount:  { fontSize: 15, fontWeight: '800', color: Colors.textDark },
-  emptyPayouts:  { fontSize: 13, color: Colors.textGray, paddingVertical: 12, textAlign: 'center' },
+  payoutDate: { fontSize: 13, fontWeight: '600', color: Colors.textDark, marginBottom: 3 },
+  payoutStatus: { fontSize: 12, color: '#16A34A', fontWeight: '600' },
+  payoutAmount: { fontSize: 15, fontWeight: '800', color: Colors.textDark },
+  emptyPayouts: { fontSize: 13, color: Colors.textGray, paddingVertical: 12, textAlign: 'center' },
+  emptyMsg: { fontSize: 13, color: Colors.textGray, paddingVertical: 10 },
 });
 
 export default RiderBankPaymentScreen;

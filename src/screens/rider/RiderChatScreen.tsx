@@ -180,10 +180,10 @@ const RiderChatScreen: React.FC<RiderChatScreenProps> = ({ navigation, route }) 
         </View>
 
         {/* Location Banner */}
-        <View style={styles.locationBanner}>
+        {/* <View style={styles.locationBanner}>
           <Text style={styles.locationPin}>📍</Text>
           <Text style={styles.locationText}>Share your live location with customer</Text>
-        </View>
+        </View> */}
       </KeyboardAvoidingView>
     </SafeAreaView>
   );

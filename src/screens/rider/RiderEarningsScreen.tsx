@@ -118,16 +118,6 @@ const RiderEarningsScreen: React.FC<Props> = (_props) => {
             ))}
           </View>
 
-          {/* ── Withdraw Button (no action) ── */}
-          <TouchableOpacity
-            style={styles.withdrawBtn}
-            activeOpacity={0.85}
-            disabled>
-            <Text style={styles.withdrawBtnText}>
-              Withdraw ₹ {thisWeek.total.toLocaleString('en-IN')}
-            </Text>
-          </TouchableOpacity>
-
           <View style={{ height: 10 }} />
         </ScrollView>
       )}

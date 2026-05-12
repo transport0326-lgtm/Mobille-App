@@ -22,7 +22,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
 import { RootStackParamList } from '../../navigation/AppNavigator';
 import { Colors } from '../../theme/theme';
-import { Suggestion, searchSuggestions, reverseGeocode, forwardGeocode } from '../../utils/mapProviders';
+import { Suggestion, searchSuggestions, reverseGeocode, forwardGeocode, getPlaceCoords } from '../../utils/mapProviders';
 import { fetchOrders } from '../../redux/sagas/booking/ordersAction';
 
 type SetLocationScreenProps = {
@@ -101,7 +101,10 @@ console.log('SetLocation route.params:', JSON.stringify(route.params));
 
   useEffect(() => {
     dispatch(fetchOrders());
-    requestAndDetectLocation();
+    // Auto-detect only on first entry — skip if pickup already resolved (e.g. returning from MapPicker)
+    if (route.params.pickupLat == null || route.params.pickupLng == null) {
+      requestAndDetectLocation();
+    }
     if (type === 'dropoff') {
       setTimeout(() => dropoffRef.current?.focus(), 500);
     }
@@ -183,27 +186,35 @@ console.log('SetLocation route.params:', JSON.stringify(route.params));
     }
   };
 
- const handleSelectSuggestion = (item: Suggestion) => {
-  // ✅ Sirf lat/lng check, no eLoc
-  if (item.lat == null || item.lng == null) {
-    Alert.alert('Location not found', 'Please try a more specific search.');
-    return;
-  }
+  const handleSelectSuggestion = async (item: Suggestion) => {
+    const fullText = item.address ? `${item.name}, ${item.address}` : item.name;
 
-  const fullText = item.address ? `${item.name}, ${item.address}` : item.name;
-  const coords = { lat: item.lat, lng: item.lng };
+    let lat = item.lat;
+    let lng = item.lng;
 
-  if (activeField === 'pickup') {
-    setPickupText(fullText);
-    setPickupCoords(coords);
-  } else {
-    setDropoffText(fullText);
-    setDropoffCoords(coords);
-  }
+    if (lat == null || lng == null) {
+      const resolved = await getPlaceCoords(item.id);
+      if (!resolved) {
+        Alert.alert('Location not found', 'Please try a more specific search.');
+        return;
+      }
+      lat = resolved.lat;
+      lng = resolved.lng;
+    }
 
-  setSuggestions([]);
-  setFieldFocused(null);
-};
+    const coords = { lat, lng };
+
+    if (activeField === 'pickup') {
+      setPickupText(fullText);
+      setPickupCoords(coords);
+    } else {
+      setDropoffText(fullText);
+      setDropoffCoords(coords);
+    }
+
+    setSuggestions([]);
+    setFieldFocused(null);
+  };
 
   const handleConfirm = async () => {
     setConfirming(true);
@@ -285,7 +296,7 @@ console.log('SetLocation route.params:', JSON.stringify(route.params));
 
       {/* Header */}
       <View style={styles.header}>
-              <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+              <TouchableOpacity onPress={() => navigation.navigate('CustomerDashboard')} style={styles.backBtn}>
                 <Image
                   source={require('../../assets/icons/arrow.png')}
                   style={styles.backArrow}
@@ -318,7 +329,7 @@ console.log('SetLocation route.params:', JSON.stringify(route.params));
                 onChangeText={setPickupText}
                 placeholder="Enter pickup location"
                 placeholderTextColor="#AAAAAA"
-                onFocus={() => setFieldFocused('pickup')}
+                onFocus={() => { setActiveField('pickup'); setFieldFocused('pickup'); }}
               />
             )}
             {!loadingLocation && (
@@ -347,7 +358,7 @@ console.log('SetLocation route.params:', JSON.stringify(route.params));
               onChangeText={text => { setDropoffText(text); setActiveField('dropoff'); }}
               placeholder="Enter drop-off location"
               placeholderTextColor="#AAAAAA"
-              onFocus={() => setFieldFocused('dropoff')}
+              onFocus={() => { setActiveField('dropoff'); setFieldFocused('dropoff'); }}
             />
           </TouchableOpacity>
 

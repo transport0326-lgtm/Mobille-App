@@ -25,11 +25,13 @@ import { RootStackParamList } from '../../navigation/AppNavigator';
 import { Colors } from '../../theme/theme';
 import { fareEstimate } from '../../redux/sagas/booking/fareEstimateAction';
 import { createBooking } from '../../redux/sagas/booking/createBookingAction';
-import { resetBooking } from '../../redux/slices/bookingSlice';
+import { trackBooking } from '../../redux/sagas/booking/trackBookingAction';
+import { resetBooking, resetTrackBooking } from '../../redux/slices/bookingSlice';
 import { fetchProfile } from '../../redux/sagas/profile/profileAction';
-import { clearToken } from '../../utils/tokenStorage';
+import { clearToken, loadActiveBooking, clearActiveBooking } from '../../utils/tokenStorage';
 import type { AppDispatch } from '../../redux/store';
 import AppHeader from '../../components/AppHeader';
+import OngoingDeliveryBanner from '../../components/OngoingDeliveryBanner';
 import MyOrdersScreen from './MyOrdersScreen';
 import NotificationsScreen from '../shared/NotificationsScreen';
 import ProfileScreen from './ProfileScreen';
@@ -101,6 +103,12 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ navigation, route
     if (p.confirmedPickup != null) setPickup(p.confirmedPickup);
     if (p.confirmedDropoff != null) setDropoff(p.confirmedDropoff);
   }, [route.params]);
+  // Existing useState ke neeche yeh add karo
+  useEffect(() => {
+    if (route.params?.tab) {
+      setActiveTab(route.params.tab);
+    }
+  }, [route.params?.tab]);
 
   // Fires whenever coords change in Redux (e.g. returning from SetLocationScreen).
   useEffect(() => {
@@ -133,6 +141,14 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ navigation, route
   const [contactSearch, setContactSearch] = useState('');
   const [contactsLoading, setContactsLoading] = useState(false);
 
+  // Active booking tracking
+  const [activeBookingId, setActiveBookingId] = useState<string | null>(null);
+  const customerPollRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
+  const trackData = useSelector((state: RootState) => state.booking.trackBooking.data);
+  const skipRestore = useSelector((state: RootState) => state.booking.skipRestore);
+  const skipRestoreRef = React.useRef(false);
+  skipRestoreRef.current = skipRestore;
+
   useEffect(() => {
     dispatch(fetchProfile());
   }, []);
@@ -142,6 +158,41 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ navigation, route
       dispatch(fetchProfile());
     }
   }, [activeTab]);
+
+  // Load persisted active booking on mount and start polling
+  useEffect(() => {
+    if (skipRestoreRef.current) return;
+    loadActiveBooking().then(id => {
+      if (!id) return;
+      setActiveBookingId(id);
+      dispatch(trackBooking({ bookingId: id }));
+    });
+    return () => {
+      if (customerPollRef.current) clearInterval(customerPollRef.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!activeBookingId) return;
+    customerPollRef.current = setInterval(() => {
+      dispatch(trackBooking({ bookingId: activeBookingId }));
+    }, 5000);
+    return () => {
+      if (customerPollRef.current) { clearInterval(customerPollRef.current); customerPollRef.current = null; }
+    };
+  }, [activeBookingId]);
+
+  // Stop tracking when booking reaches a terminal state
+  useEffect(() => {
+    const status = trackData?.booking?.status;
+    if (!status) return;
+    if (['completed', 'delivered', 'cancelled'].includes(status)) {
+      clearActiveBooking();
+      setActiveBookingId(null);
+      if (customerPollRef.current) { clearInterval(customerPollRef.current); customerPollRef.current = null; }
+      dispatch(resetTrackBooking());
+    }
+  }, [trackData?.booking?.status]);
 
   const openContacts = async () => {
     try {
@@ -484,6 +535,34 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ navigation, route
           </ScrollView>
         </>
       )}
+
+      {/* Ongoing Delivery Banner — visible on all tabs */}
+      {(() => {
+        const status = trackData?.booking?.status;
+        if (!trackData || !status || !['pending', 'assigned', 'arrived_at_pickup', 'in_transit'].includes(status)) return null;
+        return (
+          <OngoingDeliveryBanner
+            pickup={trackData.booking.pickupLocation?.address ?? ''}
+            dropoff={trackData.booking.dropoffLocation?.address ?? ''}
+            distanceKm={trackData.distanceKm}
+            etaMinutes={trackData.etaMinutes}
+            onPress={() => {
+              if (status === 'pending') {
+                navigation.navigate('FindingRider', {
+                  pickup: trackData.booking.pickupLocation?.address ?? '',
+                  dropoff: trackData.booking.dropoffLocation?.address ?? '',
+                  bookingId: trackData.booking._id,
+                });
+              } else {
+                navigation.navigate('BookingConfirmed', {
+                  booking: trackData.booking,
+                  rider: trackData.rider,
+                });
+              }
+            }}
+          />
+        );
+      })()}
 
       {/* Bottom Tab Bar — always visible */}
       <View style={styles.tabBar}>

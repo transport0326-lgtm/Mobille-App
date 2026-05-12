@@ -16,7 +16,6 @@ import { Colors } from '../../theme/theme';
 import { RootStackParamList } from '../../navigation/AppNavigator';
 import { useDispatch } from 'react-redux';
 import { verifyBookingOtp } from '../../redux/sagas/rider/verifyBookingOtpAction';
-import { resetVerifyOtpState } from '../../redux/slices/verifyBookingOtpSlice';
 
 const { width } = Dimensions.get('window');
 const OTP_LENGTH = 4;
@@ -146,7 +145,6 @@ useEffect(() => {
   const receiverName = booking?.receiverName ?? 'Unknown';
   const receiverPhone = booking?.receiverPhone ?? '';
   const dropoffAddress = booking?.dropoffLocation?.address ?? 'N/A';
-  const pickupAddress = booking?.pickupLocation?.address ?? 'N/A';
   const totalAmount = booking?.totalAmount ?? 0;
   const paymentStatus = booking?.paymentStatus ?? 'unpaid';
   const distance =
@@ -348,9 +346,9 @@ const styles = StyleSheet.create({
 
   parcelCard: { width: '100%', backgroundColor: Colors.white, borderRadius: 12, padding: 16, marginBottom: 24, elevation: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 4 },
   parcelTitle: { fontSize: 14, fontWeight: '800', color: Colors.textDark, marginBottom: 10 },
-  parcelRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: '#F5F5F5' },
-  parcelLabel: { fontSize: 13, color: Colors.textGray },
-  parcelValue: { fontSize: 13, fontWeight: '600', color: Colors.textDark },
+  parcelRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: '#F5F5F5' },
+  parcelLabel: { fontSize: 13, color: Colors.textGray, flexShrink: 0, marginRight: 12 },
+  parcelValue: { fontSize: 13, fontWeight: '600', color: Colors.textDark, flex: 1, textAlign: 'right' },
 
   verifyBtn: { width: '100%', backgroundColor: Colors.primary, borderRadius: 12, paddingVertical: 16, alignItems: 'center', elevation: 2, shadowColor: Colors.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8 },
   verifyBtnDisabled: { opacity: 0.6 },

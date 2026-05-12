@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   StyleSheet,
@@ -7,6 +7,7 @@ import {
   Linking,
   ScrollView,
   Image,
+  BackHandler,
 } from 'react-native';
 import { Text } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -14,29 +15,57 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../navigation/AppNavigator';
 import { Colors } from '../../theme/theme';
 import { useSelector } from 'react-redux';
-import type { RootState } from '../../redux/store';
+import type { RootState, AppDispatch } from '../../redux/store';
 import { useDispatch } from 'react-redux';
 import { updateBookingStatus } from '../../redux/sagas/rider/riderArrivedAction';
-import type { AppDispatch } from '../../redux/store';
+import { setSkipRestore } from '../../redux/slices/riderActiveSlice';
+import CancelOrderSheet from '../../components/CancelOrderSheet';
 
 type GoingToPickupScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'GoingToPickup'>;
 };
 
-const GoingToPickupScreen: React.FC<GoingToPickupScreenProps> = ({ navigation }) => {
+const GoingToPickupScreen: React.FC<GoingToPickupScreenProps> = ({
+  navigation,
+}) => {
   const dispatch = useDispatch<AppDispatch>();
-  const booking    = useSelector((state: RootState) => state.acceptBooking.data?.booking);
-  const etaMinutes = useSelector((state: RootState) => state.acceptBooking.data?.etaMinutes as number | null | undefined);
-  console.log('📦 acceptBooking data:', JSON.stringify(booking));
+  const [showCancelSheet, setShowCancelSheet] = useState(false);
+  const acceptedBooking = useSelector(
+    (state: RootState) => state.acceptBooking.data?.booking,
+  );
+  const activeData = useSelector((state: RootState) => state.riderActive.data);
+  const booking = acceptedBooking ?? activeData?.booking;
+  const etaMinutes = activeData?.etaMinutes ?? null;
+  const distanceKm = activeData?.distanceKm ?? null;
+  const senderName =
+    activeData?.customer?.name ?? booking?.receiverName ?? 'Customer';
+  const senderPhone =
+    activeData?.customer?.phone ?? booking?.receiverPhone ?? '';
 
-  const receiverInitials = booking?.receiverName
-    ? booking.receiverName.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)
-    : '??';
+  const senderInitials = senderName
+    .split(' ')
+    .map((n: string) => n[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2);
+    useEffect(() => {
+  console.log('[GoingToPickup] MOUNTED');
+  return () => console.log('[GoingToPickup] UNMOUNTED');
+}, []);
+
+  useEffect(() => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      dispatch(setSkipRestore());
+      requestAnimationFrame(() => {
+        navigation.reset({ index: 0, routes: [{ name: 'RiderDashboard' }] });
+      });
+      return true;
+    });
+    return () => sub.remove();
+  }, [navigation]);
 
   const handleCall = () => {
-    if (booking?.receiverPhone) {
-      Linking.openURL(`tel:${booking.receiverPhone}`);
-    }
+    if (senderPhone) Linking.openURL(`tel:${senderPhone}`);
   };
   const handleArrived = () => {
     if (!booking?._id) return;
@@ -45,7 +74,7 @@ const GoingToPickupScreen: React.FC<GoingToPickupScreenProps> = ({ navigation })
       updateBookingStatus({
         bookingId: booking._id,
         status: 'arrived_at_pickup',
-      })
+      }),
     );
     navigation.navigate('DeliveringParcel');
   };
@@ -53,7 +82,9 @@ const GoingToPickupScreen: React.FC<GoingToPickupScreenProps> = ({ navigation })
   const handleNavigate = () => {
     if (booking?.pickupLocation?.coordinates) {
       const { lat, lng } = booking.pickupLocation.coordinates;
-      Linking.openURL(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`);
+      Linking.openURL(
+        `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`,
+      );
     }
   };
 
@@ -63,7 +94,19 @@ const GoingToPickupScreen: React.FC<GoingToPickupScreenProps> = ({ navigation })
 
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn} activeOpacity={0.7}>
+        <TouchableOpacity
+          onPress={() => {
+            dispatch(setSkipRestore());
+            requestAnimationFrame(() => {
+              navigation.reset({
+                index: 0,
+                routes: [{ name: 'RiderDashboard' }],
+              });
+            });
+          }}
+          style={styles.backBtn}
+          activeOpacity={0.7}
+        >
           <Image
             source={require('../../assets/icons/arrow.png')}
             style={styles.backArrow}
@@ -85,11 +128,18 @@ const GoingToPickupScreen: React.FC<GoingToPickupScreenProps> = ({ navigation })
           />
         </View>
 
-        <Text style={styles.etaTime}>{etaMinutes != null ? `${etaMinutes} min` : '— min'} · 2.1 km</Text>
+        <Text style={styles.etaTime}>
+          {etaMinutes != null ? `${etaMinutes} min` : '— min'} ·{' '}
+          {distanceKm != null ? `${distanceKm.toFixed(2)} km` : '— km'}
+        </Text>
         <Text style={styles.etaSub}>Estimated time to pickup</Text>
 
         {/* Navigate Button */}
-        <TouchableOpacity style={styles.navigateBtn} onPress={handleNavigate} activeOpacity={0.85}>
+        <TouchableOpacity
+          style={styles.navigateBtn}
+          onPress={handleNavigate}
+          activeOpacity={0.85}
+        >
           <Image
             source={require('../../assets/icons/navigation.png')}
             style={styles.navigateBtnIcon}
@@ -112,32 +162,39 @@ const GoingToPickupScreen: React.FC<GoingToPickupScreenProps> = ({ navigation })
       {/* Bottom Panel */}
       <View style={styles.panel}>
         <ScrollView contentContainerStyle={styles.panelContent}>
-
           {/* Customer row */}
           <View style={styles.customerRow}>
             <View style={styles.avatar}>
-              <Text style={styles.avatarText}>{receiverInitials}</Text>
+              <Text style={styles.avatarText}>{senderInitials}</Text>
             </View>
             <View style={styles.customerInfo}>
-              <Text style={styles.customerName}>{booking?.receiverName ?? 'Loading...'}</Text>
+              <Text style={styles.customerName}>{senderName}</Text>
               <Text style={styles.customerMeta}>
-                Booking #{booking?.bookingNumber ?? '...'} • {booking?.parcelDetails ?? 'Pa'}
+                Booking #{booking?.bookingNumber ?? '...'} •{' '}
+                {booking?.parcelDetails ?? 'Parcel'}
               </Text>
             </View>
             <View style={styles.actionBtns}>
               <TouchableOpacity
                 style={styles.chatBtn}
                 activeOpacity={0.8}
-                onPress={() => navigation.navigate('RiderChat', {
-                  customerName: booking?.receiverName ?? 'Customer',
-                  bookingNumber: `BK-${booking?.bookingNumber ?? ''}`,
-                  bookingStatus: 'Going to Pickup',
-                  customerPhone: booking?.receiverPhone,
-                  bookingId: booking?._id,
-                })}>
+                onPress={() =>
+                  navigation.navigate('RiderChat', {
+                    customerName: senderName,
+                    bookingNumber: `BK-${booking?.bookingNumber ?? ''}`,
+                    bookingStatus: 'Going to Pickup',
+                    customerPhone: senderPhone,
+                    bookingId: booking?._id,
+                  })
+                }
+              >
                 <Text style={styles.chatBtnText}>💬 Chat</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.callBtn} onPress={handleCall} activeOpacity={0.8}>
+              <TouchableOpacity
+                style={styles.callBtn}
+                onPress={handleCall}
+                activeOpacity={0.8}
+              >
                 <Text style={styles.callBtnText}>📞 Call</Text>
               </TouchableOpacity>
             </View>
@@ -149,7 +206,8 @@ const GoingToPickupScreen: React.FC<GoingToPickupScreenProps> = ({ navigation })
             <View style={{ flex: 1 }}>
               <Text style={styles.locationLabel}>Pickup Location</Text>
               <Text style={styles.locationValue} numberOfLines={2}>
-                {booking?.pickupLocation?.address ?? 'Koramangala 5th Block, Bangalore'}
+                {booking?.pickupLocation?.address ??
+                  'Koramangala 5th Block, Bangalore'}
               </Text>
             </View>
           </View>
@@ -158,12 +216,25 @@ const GoingToPickupScreen: React.FC<GoingToPickupScreenProps> = ({ navigation })
           <TouchableOpacity
             style={styles.arrivedBtn}
             onPress={handleArrived}
-            activeOpacity={0.85}>
+            activeOpacity={0.85}
+          >
             <Text style={styles.arrivedBtnText}>I've Arrived at Pickup</Text>
           </TouchableOpacity>
 
+          {/* Cancel Order */}
+          <TouchableOpacity
+            style={styles.cancelBtn}
+            activeOpacity={0.85}
+            onPress={() => setShowCancelSheet(true)}>
+            <Text style={styles.cancelBtnText}>Cancel Order</Text>
+          </TouchableOpacity>
         </ScrollView>
       </View>
+
+      <CancelOrderSheet
+        visible={showCancelSheet}
+        onClose={() => setShowCancelSheet(false)}
+      />
     </SafeAreaView>
   );
 };
@@ -180,15 +251,30 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     gap: 10,
   },
-  backBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' }, 
+  backBtn: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   backArrow: {
     width: 20,
     height: 20,
     resizeMode: 'contain',
     tintColor: '#fff',
   },
-  headerTitle: { flex: 0, fontSize: 17, fontWeight: '800', color: Colors.white },
-  inRouteBadge: { backgroundColor: '#22C55E', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 4 },
+  headerTitle: {
+    flex: 0,
+    fontSize: 17,
+    fontWeight: '800',
+    color: Colors.white,
+  },
+  inRouteBadge: {
+    backgroundColor: '#22C55E',
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+  },
   inRouteText: { fontSize: 12, fontWeight: '700', color: Colors.white },
 
   // ETA Section (replaces map)
@@ -213,7 +299,12 @@ const styles = StyleSheet.create({
     tintColor: Colors.secondary,
   },
   etaTime: { fontSize: 20, fontWeight: '800', color: Colors.textDark },
-  etaSub: { fontSize: 13, color: Colors.textGray, marginTop: 4, marginBottom: 18 },
+  etaSub: {
+    fontSize: 13,
+    color: Colors.textGray,
+    marginTop: 4,
+    marginBottom: 18,
+  },
 
   navigateBtn: {
     flexDirection: 'row',
@@ -233,7 +324,12 @@ const styles = StyleSheet.create({
     resizeMode: 'contain',
     tintColor: '#fff',
   },
-  navigateBtnText: { color: '#FFFFFF', fontSize: 18, fontWeight: '700', marginStart: 5 },
+  navigateBtnText: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '700',
+    marginStart: 5,
+  },
 
   addressRow: {
     flexDirection: 'row',
@@ -262,7 +358,12 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.08,
     shadowRadius: 6,
   },
-  panelContent: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 20, gap: 14 },
+  panelContent: {
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 20,
+    gap: 14,
+  },
 
   // Customer row
   customerRow: {
@@ -275,27 +376,55 @@ const styles = StyleSheet.create({
     marginTop: 15,
   },
   avatar: {
-    width: 44, height: 44, borderRadius: 22,
-    backgroundColor: Colors.secondary, alignItems: 'center', justifyContent: 'center',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: Colors.secondary,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   avatarText: { fontSize: 15, fontWeight: '800', color: Colors.white },
   customerInfo: { flex: 1 },
-  customerName: { fontSize: 15, fontWeight: '700', color: Colors.textDark, marginBottom: 2 },
+  customerName: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: Colors.textDark,
+    marginBottom: 2,
+  },
   customerMeta: { fontSize: 12, color: Colors.textGray },
   actionBtns: { flexDirection: 'row', gap: 6 },
-  chatBtn: { backgroundColor: '#1E293B', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 7 },
+  chatBtn: {
+    backgroundColor: '#1E293B',
+    borderRadius: 20,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
   chatBtnText: { fontSize: 12, fontWeight: '700', color: Colors.white },
-  callBtn: { backgroundColor: '#22C55E', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 7 },
+  callBtn: {
+    backgroundColor: '#22C55E',
+    borderRadius: 20,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
   callBtnText: { fontSize: 12, fontWeight: '700', color: Colors.white },
 
   // Location row
   locationRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-    backgroundColor: '#F8F9FA', borderRadius: 10,
-    paddingHorizontal: 14, paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: '#F8F9FA',
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
     marginTop: 20,
   },
-  locationDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#22C55E' },
+  locationDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#22C55E',
+  },
   locationLabel: { fontSize: 11, color: Colors.textGray, marginBottom: 2 },
   locationValue: { fontSize: 14, fontWeight: '600', color: Colors.textDark },
 
@@ -308,6 +437,15 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   arrivedBtnText: { color: Colors.white, fontSize: 15, fontWeight: '700' },
+
+  cancelBtn: {
+    borderWidth: 1.5,
+    borderColor: '#EF4444',
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  cancelBtnText: { color: '#EF4444', fontSize: 15, fontWeight: '700' },
 });
 
 export default GoingToPickupScreen;

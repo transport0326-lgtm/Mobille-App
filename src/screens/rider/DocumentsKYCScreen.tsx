@@ -1,16 +1,21 @@
-﻿import React from 'react';
+import React, { useEffect } from 'react';
 import {
   View,
   StyleSheet,
   StatusBar,
   TouchableOpacity,
   ScrollView,
+  Image,
+  ActivityIndicator,
 } from 'react-native';
 import { Text } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { useDispatch, useSelector } from 'react-redux';
 import { RootStackParamList } from '../../navigation/AppNavigator';
 import { Colors } from '../../theme/theme';
+import { fetchRiderDocuments } from '../../redux/sagas/rider/riderDocumentsAction';
+import type { AppDispatch, RootState } from '../../redux/store';
 
 type Props = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'DocumentsKYC'>;
@@ -18,23 +23,11 @@ type Props = {
 
 type DocStatus = 'Verified' | 'Expiring Soon' | 'Pending';
 
-type Document = {
-  id: string;
-  icon: string;
-  name: string;
-  number: string;
-  expiry: string;
-  status: DocStatus;
+const STATUS_MAP: Record<string, DocStatus> = {
+  verified:      'Verified',
+  expiring_soon: 'Expiring Soon',
+  pending:       'Pending',
 };
-
-const DOCUMENTS: Document[] = [
-  { id: '1', icon: '🪪', name: 'Driving License',           number: 'DL-5678-XXXX-1234', expiry: '12 Aug 2028', status: 'Verified'      },
-  { id: '2', icon: '📄', name: 'RC Card',                   number: 'RC-2022-87654',     expiry: '15 Mar 2027', status: 'Verified'      },
-  { id: '3', icon: '🪪', name: 'Aadhaar Card',              number: 'XXXX-XXXX-5678',    expiry: 'N/A',         status: 'Verified'      },
-  { id: '4', icon: '📋', name: 'PAN Card',                  number: 'XXXXX-1234-X',      expiry: 'N/A',         status: 'Verified'      },
-  { id: '5', icon: '🛡️', name: 'Insurance Certificate',    number: 'INS-456789',         expiry: '20 Sep 2026', status: 'Expiring Soon' },
-  { id: '6', icon: '🔧', name: 'Vehicle Fitness Certificate', number: 'FIT-2024-001',    expiry: '10 Jan 2027', status: 'Verified'      },
-];
 
 const STATUS_STYLE: Record<DocStatus, { bg: string; text: string }> = {
   'Verified':      { bg: '#E8F5E9', text: '#16A34A' },
@@ -42,88 +35,151 @@ const STATUS_STYLE: Record<DocStatus, { bg: string; text: string }> = {
   'Pending':       { bg: '#FFF0ED', text: Colors.primary },
 };
 
-const DocumentsKYCScreen: React.FC<Props> = ({ navigation }) => (
-  <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-    <StatusBar barStyle="light-content" backgroundColor={Colors.secondary} />
+const DocumentsKYCScreen: React.FC<Props> = ({ navigation }) => {
+  console.log('SCREEN RENDERED =====>');
+  const dispatch = useDispatch<AppDispatch>();
+  const { loading, data, error } = useSelector((state: RootState) => state.riderDocuments);
 
-    {/* Header */}
-    <View style={styles.header}>
-      <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn} activeOpacity={0.7}>
-        <Text style={styles.backArrow}>←</Text>
-      </TouchableOpacity>
-      <Text style={styles.headerTitle}>Documents & KYC</Text>
-      <View style={{ width: 36 }} />
-    </View>
+  useEffect(() => {
+  const action = fetchRiderDocuments();
+  console.log('ACTION TYPE ====>', action.type); // ← ADD THIS
+  dispatch(action);
+}, []);
 
-    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+  const docs = data
+    ? [
+        data.drivingLicense && {
+          id: '1',
+          icon: '🪪',
+          name: 'Driving License',
+          number: data.drivingLicense.number,
+          status: STATUS_MAP[data.drivingLicense.status] ?? 'Pending',
+        },
+        data.rcCard && {
+          id: '2',
+          icon: '📄',
+          name: 'RC Card',
+          number: data.rcCard.number,
+          status: STATUS_MAP[data.rcCard.status] ?? 'Pending',
+        },
+      ].filter(Boolean)
+    : [];
 
-      {/* KYC status banner */}
-      <View style={styles.kycBanner}>
-        <Text style={styles.kycIcon}>🛡️</Text>
-        <View style={styles.kycText}>
-          <Text style={styles.kycTitle}>KYC Verified</Text>
-          <Text style={styles.kycSub}>All documents are up to date</Text>
+  const allVerified = docs.length > 0 && docs.every(d => d && d.status === 'Verified');
+  const anyPending  = docs.some(d => d && d.status === 'Pending');
+
+  const kycTitle = allVerified ? 'KYC Verified' : anyPending ? 'KYC Pending' : 'KYC Under Review';
+  const kycSub   = allVerified
+    ? 'All documents are up to date'
+    : 'Some documents are awaiting verification';
+  const kycIcon  = allVerified ? '🛡️' : '⏳';
+  const kycColor = allVerified ? '#16A34A' : '#D97706';
+  const kycBg    = allVerified ? '#F0FFF4' : '#FFFBEB';
+  const kycBorder = allVerified ? '#BBF7D0' : '#FDE68A';
+
+  return (
+    <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+      <StatusBar barStyle="light-content" backgroundColor={Colors.secondary} />
+
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+          <Image
+            source={require('../../assets/icons/arrow.png')}
+            style={styles.backArrow}
+          />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Documents & KYC</Text>
+      </View>
+
+      {loading ? (
+        <View style={styles.centered}>
+          <ActivityIndicator size="large" color={Colors.secondary} />
         </View>
-      </View>
+      ) : error ? (
+        <View style={styles.centered}>
+          <Text style={styles.errorText}>{error}</Text>
+          <TouchableOpacity onPress={() => dispatch(fetchRiderDocuments())} style={styles.retryBtn}>
+            <Text style={styles.retryText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
 
-      {/* Document list */}
-      <View style={styles.list}>
-        {DOCUMENTS.map((doc, index) => {
-          const badge = STATUS_STYLE[doc.status];
-          return (
-            <View
-              key={doc.id}
-              style={[styles.docCard, index < DOCUMENTS.length - 1 && styles.docCardBorder]}>
-              <Text style={styles.docIcon}>{doc.icon}</Text>
-              <View style={styles.docInfo}>
-                <Text style={styles.docName}>{doc.name}</Text>
-                <Text style={styles.docNumber}>{doc.number}</Text>
-                <Text style={styles.docExpiry}>Exp: {doc.expiry}</Text>
-              </View>
-              <View style={[styles.badge, { backgroundColor: badge.bg }]}>
-                <Text style={[styles.badgeText, { color: badge.text }]}>{doc.status}</Text>
-              </View>
+          {/* KYC status banner */}
+          <View style={[styles.kycBanner, { backgroundColor: kycBg, borderBottomColor: kycBorder }]}>
+            <Text style={styles.kycIcon}>{kycIcon}</Text>
+            <View style={styles.kycText}>
+              <Text style={[styles.kycTitle, { color: kycColor }]}>{kycTitle}</Text>
+              <Text style={styles.kycSub}>{kycSub}</Text>
             </View>
-          );
-        })}
-      </View>
+          </View>
 
-      {/* Upload button */}
-      <TouchableOpacity style={styles.uploadBtn} activeOpacity={0.7}>
-        <Text style={styles.uploadText}>+ Upload New Document</Text>
-      </TouchableOpacity>
+          {/* Document list */}
+          <View style={styles.list}>
+            {docs.map((doc, index) => {
+              if (!doc) return null;
+              const badge = STATUS_STYLE[doc.status];
+              return (
+                <View
+                  key={doc.id}
+                  style={[styles.docCard, index < docs.length - 1 && styles.docCardBorder]}>
+                  <Text style={styles.docIcon}>{doc.icon}</Text>
+                  <View style={styles.docInfo}>
+                    <Text style={styles.docName}>{doc.name}</Text>
+                    <Text style={styles.docNumber}>{doc.number}</Text>
+                  </View>
+                  <View style={[styles.badge, { backgroundColor: badge.bg }]}>
+                    <Text style={[styles.badgeText, { color: badge.text }]}>{doc.status}</Text>
+                  </View>
+                </View>
+              );
+            })}
+          </View>
 
-    </ScrollView>
-  </SafeAreaView>
-);
+        </ScrollView>
+      )}
+    </SafeAreaView>
+  );
+};
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: Colors.background },
 
   header: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    backgroundColor: Colors.secondary, paddingHorizontal: 16, paddingVertical: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.secondary,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
   },
-  backBtn:     { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
-  backArrow: { fontSize: 22, lineHeight: 22, color: Colors.white, fontWeight: '700', includeFontPadding: false },
-  headerTitle: { fontSize: 18, lineHeight: 22, fontWeight: '800', color: Colors.white, includeFontPadding: false },
+  backBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+  backArrow: { width: 20, height: 20, resizeMode: 'contain', tintColor: '#fff' },
+  headerTitle: { fontSize: 18, color: Colors.white, fontWeight: '700', marginLeft: 12 },
+
+  centered: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
+  errorText: { fontSize: 14, color: Colors.textGray, textAlign: 'center', marginBottom: 16 },
+  retryBtn: {
+    backgroundColor: Colors.secondary,
+    paddingHorizontal: 24,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  retryText: { color: Colors.white, fontWeight: '700' },
 
   scroll: { paddingBottom: 32 },
 
-  // KYC banner
   kycBanner: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
-    backgroundColor: '#F0FFF4', borderBottomWidth: 1, borderBottomColor: '#BBF7D0',
+    borderBottomWidth: 1,
     paddingHorizontal: 20, paddingVertical: 16,
   },
   kycIcon:  { fontSize: 28 },
   kycText:  { flex: 1 },
-  kycTitle: { fontSize: 15, fontWeight: '800', color: '#16A34A' },
+  kycTitle: { fontSize: 15, fontWeight: '800', marginBottom: 2 },
   kycSub:   { fontSize: 12, color: '#4B8B5E', marginTop: 2 },
 
-  // Document list
   list: { backgroundColor: Colors.white, marginTop: 12 },
-
   docCard: {
     flexDirection: 'row', alignItems: 'center',
     paddingHorizontal: 20, paddingVertical: 16, gap: 14,
@@ -133,18 +189,9 @@ const styles = StyleSheet.create({
   docInfo:   { flex: 1 },
   docName:   { fontSize: 14, fontWeight: '700', color: Colors.textDark, marginBottom: 2 },
   docNumber: { fontSize: 12, color: Colors.textGray },
-  docExpiry: { fontSize: 12, color: Colors.textGray, marginTop: 1 },
 
   badge:     { borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 },
   badgeText: { fontSize: 11, fontWeight: '700' },
-
-  // Upload button
-  uploadBtn: {
-    marginHorizontal: 16, marginTop: 16,
-    borderWidth: 1.5, borderColor: Colors.secondary, borderStyle: 'dashed',
-    borderRadius: 12, paddingVertical: 16, alignItems: 'center',
-  },
-  uploadText: { fontSize: 15, fontWeight: '700', color: Colors.secondary },
 });
 
 export default DocumentsKYCScreen;

@@ -26,9 +26,9 @@ type DeliveryRequestModalProps = {
   visible: boolean;
   request: DeliveryRequest;
   onAccept: () => void;
-  onReject: (reason: string) => void; // ← reason pass hoga ab
+  onReject: (reason: string) => void;
   accepting?: boolean;
-  rejecting?: boolean;               // ← naya prop
+  rejecting?: boolean; 
   countdownSeconds?: number;
 };
 
@@ -73,7 +73,6 @@ const DeliveryRequestModal: React.FC<DeliveryRequestModalProps> = ({
   const formatTime = (s: number) =>
     `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
 
-  // Reason select hone par: modal band karo, reason ke saath onReject call karo
   const handleReasonSelect = (reason: string) => {
     setShowRejectModal(false);
     onReject(reason);
@@ -107,7 +106,7 @@ const DeliveryRequestModal: React.FC<DeliveryRequestModalProps> = ({
             <View style={styles.statDivider} />
             <View style={styles.statItem}>
               <Text style={styles.statLabel}>Vehicle</Text>
-              <Text style={styles.statValue}>🏍️ {request.vehicle}</Text>
+              <Text style={styles.statValue}>{request.vehicle}</Text>
             </View>
           </View>
 

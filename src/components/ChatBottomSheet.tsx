@@ -22,6 +22,7 @@ import type { RootState, AppDispatch } from '../redux/store';
 const { height, width } = Dimensions.get('window');
 const SHEET_HEIGHT = height * 0.72;
 const POLL_INTERVAL_MS = 5000;
+const QUICK_REPLIES = ['Where is my parcel?', 'Running late?', 'Okay, thanks!', 'Be careful!'];
 
 const getInitials = (name?: string) => {
   if (!name) return '?';
@@ -95,10 +96,10 @@ const ChatBottomSheet: React.FC<Props> = ({ visible, onClose, bookingId, riderNa
     }
   }, [messages.length]);
 
-  const handleSend = () => {
-    const text = inputText.trim();
+  const handleSend = (quickText?: string) => {
+    const text = (quickText ?? inputText).trim();
     if (!text || sending) return;
-    setInputText('');
+    if (!quickText) setInputText('');
     dispatch(sendMessage({ bookingId, text, senderRole: 'customer' }));
   };
 
@@ -178,6 +179,23 @@ const ChatBottomSheet: React.FC<Props> = ({ visible, onClose, bookingId, riderNa
             )}
           </ScrollView>
 
+          {/* Quick Replies */}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.quickReplies}
+            contentContainerStyle={styles.quickRepliesContent}>
+            {QUICK_REPLIES.map(reply => (
+              <TouchableOpacity
+                key={reply}
+                style={styles.chip}
+                onPress={() => handleSend(reply)}
+                activeOpacity={0.7}>
+                <Text style={styles.chipText}>{reply}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+
           {/* Input */}
           <View style={styles.inputRow}>
             <RNTextInput
@@ -190,7 +208,7 @@ const ChatBottomSheet: React.FC<Props> = ({ visible, onClose, bookingId, riderNa
             />
             <TouchableOpacity
               style={[styles.sendBtn, (!inputText.trim() || sending) && styles.sendBtnDisabled]}
-              onPress={handleSend}
+              onPress={() => handleSend()}
               activeOpacity={0.8}
               disabled={!inputText.trim() || sending}>
               <Text style={styles.sendBtnIcon}>➤</Text>
@@ -241,6 +259,10 @@ const styles = StyleSheet.create({
   timeRider:       { fontSize: 10, color: Colors.textGray,              marginTop: 4 },
   timeMe:          { fontSize: 10, color: 'rgba(255,255,255,0.75)',      marginTop: 4, textAlign: 'right' },
 
+  quickReplies:        { backgroundColor: Colors.white, maxHeight: 52, borderTopWidth: 1, borderTopColor: '#F0F0F0' },
+  quickRepliesContent: { paddingHorizontal: 12, paddingVertical: 10, gap: 8, flexDirection: 'row' },
+  chip:                { borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 20, paddingHorizontal: 14, paddingVertical: 6 },
+  chipText:            { fontSize: 13, color: Colors.textDark, fontWeight: '500' },
   inputRow:        { flexDirection: 'row', alignItems: 'flex-end', paddingHorizontal: 14, paddingVertical: 10, borderTopWidth: 1, borderTopColor: '#F0F0F0', gap: 10, backgroundColor: Colors.white },
   chatInput:       { flex: 1, backgroundColor: '#F5F5F5', borderRadius: 22, paddingHorizontal: 16, paddingVertical: 10, fontSize: 14, color: Colors.textDark, maxHeight: 90 },
   sendBtn:         { width: 42, height: 42, borderRadius: 21, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center' },

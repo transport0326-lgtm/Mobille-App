@@ -42,6 +42,8 @@ const EditProfileScreen: React.FC<EditProfileScreenProps> = ({ navigation }) => 
   const [fullName, setFullName] = useState('');
   const [phone, setPhone]       = useState('');
   const [email, setEmail]       = useState('');
+  const [nameError, setNameError]   = useState('');
+  const [emailError, setEmailError] = useState('');
 
   useEffect(() => {
     if (user) {
@@ -58,7 +60,36 @@ const EditProfileScreen: React.FC<EditProfileScreenProps> = ({ navigation }) => 
     }
   }, [success]);
 
+  const validate = () => {
+    let valid = true;
+    const trimmedName = fullName.trim();
+    const trimmedEmail = email.trim();
+
+    if (!trimmedName) {
+      setNameError('Name is required.');
+      valid = false;
+    } else if (trimmedName.length < 2) {
+      setNameError('Name must be at least 2 characters.');
+      valid = false;
+    } else if (!/^[a-zA-Z\s]+$/.test(trimmedName)) {
+      setNameError('Name can only contain letters and spaces.');
+      valid = false;
+    } else {
+      setNameError('');
+    }
+
+    if (trimmedEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+      setEmailError('Enter a valid email address.');
+      valid = false;
+    } else {
+      setEmailError('');
+    }
+
+    return valid;
+  };
+
   const handleSave = () => {
+    if (!validate()) return;
     dispatch(updateProfile({ name: fullName.trim(), phone: phone.trim(), email: email.trim() }));
   };
 
@@ -102,13 +133,14 @@ const EditProfileScreen: React.FC<EditProfileScreenProps> = ({ navigation }) => 
             <View style={styles.fieldGroup}>
               <Text style={styles.fieldLabel}>Full Name</Text>
               <TextInput
-                style={styles.fieldInput}
+                style={[styles.fieldInput, nameError ? styles.fieldInputError : null]}
                 value={fullName}
-                onChangeText={setFullName}
+                onChangeText={v => { setFullName(v); if (nameError) setNameError(''); }}
                 placeholder="Enter your name"
                 placeholderTextColor="#AAAAAA"
                 autoCapitalize="words"
               />
+              {nameError ? <Text style={styles.fieldError}>{nameError}</Text> : null}
             </View>
 
             <View style={styles.fieldGroup}>
@@ -126,14 +158,15 @@ const EditProfileScreen: React.FC<EditProfileScreenProps> = ({ navigation }) => 
             <View style={styles.fieldGroup}>
               <Text style={styles.fieldLabel}>Email Address</Text>
               <TextInput
-                style={styles.fieldInput}
+                style={[styles.fieldInput, emailError ? styles.fieldInputError : null]}
                 value={email}
-                onChangeText={setEmail}
+                onChangeText={v => { setEmail(v); if (emailError) setEmailError(''); }}
                 placeholder="Enter your email"
                 placeholderTextColor="#AAAAAA"
                 keyboardType="email-address"
                 autoCapitalize="none"
               />
+              {emailError ? <Text style={styles.fieldError}>{emailError}</Text> : null}
             </View>
           </View>
         </ScrollView>
@@ -244,6 +277,16 @@ const styles = StyleSheet.create({
   fieldInputDisabled: {
     backgroundColor: '#F3F4F6',
     color: Colors.textGray,
+  },
+  fieldInputError: {
+    borderColor: '#DC2626',
+  },
+  fieldError: {
+    fontSize: 12,
+    color: '#DC2626',
+    marginTop: -8,
+    marginBottom: 10,
+    marginLeft: 2,
   },
 
   footer: {

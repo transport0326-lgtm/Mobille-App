@@ -1,4 +1,4 @@
-﻿import React from 'react';
+﻿import React, { useEffect, useState } from 'react';
 import {
   View,
   StyleSheet,
@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   Linking,
   Image,
+  BackHandler,
 } from 'react-native';
 import { Text } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -14,12 +15,13 @@ import { RootStackParamList } from '../../navigation/AppNavigator';
 import { Colors } from '../../theme/theme';
 import { useSelector } from 'react-redux';
 import type { RootState } from '../../redux/store';
+import { useDispatch } from 'react-redux';
+import type { AppDispatch } from '../../redux/store';
+import { setSkipRestore } from '../../redux/slices/riderActiveSlice';
+import CancelOrderSheet from '../../components/CancelOrderSheet';
 
 type DeliveringParcelScreenProps = {
-  navigation: NativeStackNavigationProp<
-    RootStackParamList,
-    'DeliveringParcel'
-  >;
+  navigation: NativeStackNavigationProp<RootStackParamList, 'DeliveringParcel'>;
 };
 
 const formatTime = (dateString?: string) => {
@@ -33,60 +35,75 @@ const formatTime = (dateString?: string) => {
   });
 };
 
+const DeliveringParcelScreen: React.FC<DeliveringParcelScreenProps> = ({
+  navigation,
+}) => {
+  const dispatch = useDispatch<AppDispatch>();
+  const [showCancelSheet, setShowCancelSheet] = useState(false);
+  const statusBooking = useSelector(
+    (state: RootState) => state.updateBookingStatus.booking,
+  );
+  const activeData = useSelector((state: RootState) => state.riderActive.data);
+  const booking = statusBooking ?? activeData?.booking;
+  const etaMinutes = activeData?.etaMinutes ?? null;
+  const distanceKm = activeData?.distanceKm ?? null;
+  const senderName = activeData?.customer?.name ?? 'Sender';
+  const senderPhone = activeData?.customer?.phone ?? '';
 
-const DeliveringParcelScreen: React.FC<
-  DeliveringParcelScreenProps
-> = ({ navigation }) => {
-  const booking    = useSelector((state: RootState) => state.updateBookingStatus.booking);
-  const etaMinutes = useSelector((state: RootState) => state.updateBookingStatus.etaMinutes);
-
-  
-const PROGRESS_STEPS = [
-  {
-    label: 'Order Accepted',
-    time: formatTime(booking?.createdAt),
-    done: true,
-    active: false,
-  },
-  {
-    label: 'Picked Up from Customer',
-    time: formatTime(booking?.updatedAt),
-    done: true,
-    active: false,
-  },
-  {
-    label: 'On the Way to Drop-off',
-    time: 'Now',
-    done: false,
-    active: true,
-  },
-  {
-    label: 'Delivered',
-    time: '',
-    done: false,
-    active: false,
-  },
-];
-
-  const senderName = booking?.userName ?? 'Rahim';
-  const senderPhone = booking?.userPhone ?? '9999999999';
+  const PROGRESS_STEPS = [
+    {
+      label: 'Order Accepted',
+      time: formatTime(booking?.createdAt),
+      done: true,
+      active: false,
+    },
+    {
+      label: 'Picked Up from Customer',
+      time: formatTime(booking?.updatedAt),
+      done: true,
+      active: false,
+    },
+    {
+      label: 'On the Way to Drop-off',
+      time: 'Now',
+      done: false,
+      active: true,
+    },
+    {
+      label: 'Delivered',
+      time: '',
+      done: false,
+      active: false,
+    },
+  ];
 
   const getInitials = (name?: string) => {
     return name
       ? name
-        .split(' ')
-        .map(n => n[0])
-        .join('')
-        .toUpperCase()
-        .slice(0, 2)
+          .split(' ')
+          .map(n => n[0])
+          .join('')
+          .toUpperCase()
+          .slice(0, 2)
       : '??';
   };
+
+  useEffect(() => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      dispatch(setSkipRestore());
+      requestAnimationFrame(() => {
+        navigation.reset({ index: 0, routes: [{ name: 'RiderDashboard' }] });
+      });
+      return true;
+    });
+    return () => sub.remove();
+  }, [navigation]);
 
   const handleNavigate = () => {
     if (booking?.dropoffLocation?.coordinates) {
       const { lat, lng } = booking.dropoffLocation.coordinates;
       Linking.openURL(
-        `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`
+        `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`,
       );
     }
   };
@@ -114,8 +131,17 @@ const PROGRESS_STEPS = [
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity
-          onPress={() => navigation.goBack()}
-          style={styles.backBtn}>
+          onPress={() => {
+            dispatch(setSkipRestore());
+            requestAnimationFrame(() => {
+              navigation.reset({
+                index: 0,
+                routes: [{ name: 'RiderDashboard' }],
+              });
+            });
+          }}
+          style={styles.backBtn}
+        >
           <Image
             source={require('../../assets/icons/arrow.png')}
             style={styles.backArrow}
@@ -138,19 +164,18 @@ const PROGRESS_STEPS = [
           />
         </View>
 
-        <Text style={styles.etaTime}>{etaMinutes != null ? `${etaMinutes} min` : '— min'} · 3.2 km</Text>
+        <Text style={styles.etaTime}>
+          {etaMinutes != null ? `${etaMinutes} min` : '— min'} ·{' '}
+          {distanceKm != null ? `${distanceKm.toFixed(2)} km` : '— km'}
+        </Text>
         <Text style={styles.etaSub}>Estimated time to drop-off</Text>
 
-        <TouchableOpacity
-          style={styles.navigateBtn}
-          onPress={handleNavigate}>
+        <TouchableOpacity style={styles.navigateBtn} onPress={handleNavigate}>
           <Image
             source={require('../../assets/icons/navigation.png')}
             style={styles.navigateBtnIcon}
           />
-          <Text style={styles.navigateBtnText}>
-            Navigate in Google Maps
-          </Text>
+          <Text style={styles.navigateBtnText}>Navigate in Google Maps</Text>
         </TouchableOpacity>
 
         <View style={styles.addressRow}>
@@ -158,7 +183,11 @@ const PROGRESS_STEPS = [
             source={require('../../assets/icons/location_on.png')}
             style={styles.addressPin}
           />
-          <Text style={styles.addressText} numberOfLines={2} ellipsizeMode="tail">
+          <Text
+            style={styles.addressText}
+            numberOfLines={2}
+            ellipsizeMode="tail"
+          >
             {booking?.dropoffLocation?.address ?? ''}
           </Text>
         </View>
@@ -166,9 +195,7 @@ const PROGRESS_STEPS = [
       {/* 🔵 Sender (STATIC) */}
       <View style={styles.customerRow}>
         <View style={styles.avatar}>
-          <Text style={styles.avatarText}>
-            {getInitials(senderName)}
-          </Text>
+          <Text style={styles.avatarText}>{getInitials(senderName)}</Text>
         </View>
 
         <View style={styles.customerInfo}>
@@ -177,15 +204,14 @@ const PROGRESS_STEPS = [
         </View>
 
         <View style={styles.actionBtns}>
-          <TouchableOpacity
-            style={styles.chatBtn}
-            onPress={handleChat}>
+          <TouchableOpacity style={styles.chatBtn} onPress={handleChat}>
             <Text style={styles.chatBtnText}>💬 Chat</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             style={styles.callBtn}
-            onPress={() => handleCall(senderPhone)}>
+            onPress={() => handleCall(senderPhone)}
+          >
             <Text style={styles.callBtnText}>📞 Call</Text>
           </TouchableOpacity>
         </View>
@@ -209,7 +235,8 @@ const PROGRESS_STEPS = [
         <View style={styles.actionBtns}>
           <TouchableOpacity
             style={styles.callBtn}
-            onPress={() => handleCall(booking?.receiverPhone)}>
+            onPress={() => handleCall(booking?.receiverPhone)}
+          >
             <Text style={styles.callBtnText}>📞 Call</Text>
           </TouchableOpacity>
         </View>
@@ -228,16 +255,12 @@ const PROGRESS_STEPS = [
                     styles.stepDot,
                     step.done && styles.stepDotDone,
                     step.active && styles.stepDotActive,
-                    !step.done && !step.active &&
-                    styles.stepDotPending,
+                    !step.done && !step.active && styles.stepDotPending,
                   ]}
                 />
                 {index < PROGRESS_STEPS.length - 1 && (
                   <View
-                    style={[
-                      styles.stepLine,
-                      step.done && styles.stepLineDone,
-                    ]}
+                    style={[styles.stepLine, step.done && styles.stepLineDone]}
                   />
                 )}
               </View>
@@ -256,7 +279,11 @@ const PROGRESS_STEPS = [
           <View style={styles.locationDot} />
           <View style={{ flex: 1 }}>
             <Text style={styles.locationLabel}>Drop-off Location</Text>
-            <Text style={styles.locationValue} numberOfLines={2} ellipsizeMode="tail">
+            <Text
+              style={styles.locationValue}
+              numberOfLines={2}
+              ellipsizeMode="tail"
+            >
               {booking?.dropoffLocation?.address ?? ''}
             </Text>
           </View>
@@ -264,12 +291,23 @@ const PROGRESS_STEPS = [
 
         <TouchableOpacity
           style={styles.completeBtn}
-          onPress={() => navigation.navigate('VerifyDeliveryOTP')}>
-          <Text style={styles.completeBtnText}>
-            Complete Delivery
-          </Text>
+          onPress={() => navigation.navigate('VerifyDeliveryOTP')}
+        >
+          <Text style={styles.completeBtnText}>Complete Delivery</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.cancelBtn}
+          activeOpacity={0.85}
+          onPress={() => setShowCancelSheet(true)}>
+          <Text style={styles.cancelBtnText}>Cancel Order</Text>
         </TouchableOpacity>
       </View>
+
+      <CancelOrderSheet
+        visible={showCancelSheet}
+        onClose={() => setShowCancelSheet(false)}
+      />
     </SafeAreaView>
   );
 };
@@ -285,7 +323,12 @@ const styles = StyleSheet.create({
     gap: 10,
   },
 
-  backBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
+  backBtn: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   backArrow: {
     width: 20,
     height: 20,
@@ -393,7 +436,7 @@ const styles = StyleSheet.create({
     height: 10,
     backgroundColor: '#F75522',
     borderRadius: 10,
-    margin:5,
+    margin: 5,
   },
 
   locationLabel: { fontSize: 12 },
@@ -409,6 +452,16 @@ const styles = StyleSheet.create({
   },
 
   completeBtnText: { color: '#fff', fontWeight: '700' },
+
+  cancelBtn: {
+    marginTop: 10,
+    borderWidth: 1.5,
+    borderColor: '#EF4444',
+    borderRadius: 10,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  cancelBtnText: { color: '#EF4444', fontSize: 15, fontWeight: '700' },
 
   customerRow: {
     flexDirection: 'row',

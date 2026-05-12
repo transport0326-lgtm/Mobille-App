@@ -9,6 +9,7 @@ export interface UpdateRiderProfilePayload {
     email: string;
     vehicleNumber: string;
     emergencyContact: string;
+    profilePhotoUrl?: string;
   };
 }
 

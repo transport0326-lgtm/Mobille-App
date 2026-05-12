@@ -1,5 +1,4 @@
 ﻿import React, { useState } from 'react';
-import { clearToken } from '../../utils/tokenStorage';
 import {
   View,
   StyleSheet,
@@ -22,6 +21,8 @@ import { resetDeleteAccount } from '../../redux/slices/deleteAccountSlice';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../navigation/AppNavigator';
 import { Colors } from '../../theme/theme';
+import { useNavigation } from '@react-navigation/native';
+import { clearToken } from '../../utils/tokenStorage';
 
 const getInitials = (name: string) => {
   const parts = name.trim().split(' ').filter(Boolean);
@@ -35,9 +36,7 @@ const formatEarnings = (amount: number): string => {
   return `₹${amount}`;
 };
 
-type Props = {
-  navigation: NativeStackNavigationProp<RootStackParamList>;
-};
+type Props = Record<string, never>;
 
 type MenuItem = {
   id: string;
@@ -56,11 +55,11 @@ const MENU_ITEMS: MenuItem[] = [
   //   icon: require('../../assets/icons/vehicle.png'),
   //   label: 'Vehicle Details',
   // },
-  // {
-  //   id: 'docs',
-  //   icon: require('../../assets/icons/documents.png'),
-  //   label: 'Documents & KYC',
-  // },
+  {
+    id: 'docs',
+    icon: require('../../assets/icons/documents.png'),
+    label: 'Documents & KYC',
+  },
   {
     id: 'bank',
     icon: require('../../assets/icons/bank.png'),
@@ -78,7 +77,8 @@ const MENU_ITEMS: MenuItem[] = [
   },
 ];
 
-const RiderProfileScreen: React.FC<Props> = ({ navigation }) => {
+const RiderProfileScreen: React.FC<Props> = () => {
+  const rootNavigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const dispatch = useDispatch<AppDispatch>();
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteReason, setDeleteReason] = useState('');
@@ -90,11 +90,18 @@ const RiderProfileScreen: React.FC<Props> = ({ navigation }) => {
   const { loading: deleting, success: deleteSuccess, error: deleteError } =
     useSelector((state: RootState) => state.deleteAccount);
 
+  const riderActiveBooking = useSelector((state: RootState) => state.riderActive.data?.booking);
+  const hasActiveBooking = !!riderActiveBooking && !['completed', 'cancelled'].includes(riderActiveBooking.status);
+
+  const handleLogout = async () => {
+    await clearToken();
+    rootNavigation.reset({ index: 0, routes: [{ name: 'Login' }] });
+  };
+
   React.useEffect(() => {
     if (deleteSuccess) {
       dispatch(resetDeleteAccount());
-      clearToken();
-      navigation.navigate('Login');
+      handleLogout();
     }
   }, [deleteSuccess]);
 
@@ -105,14 +112,21 @@ const RiderProfileScreen: React.FC<Props> = ({ navigation }) => {
     }
   }, [deleteError]);
 
+  // const handleMenuPress = (id: string) => {
+  //   if (id === 'edit') navigation.navigate('RiderEditProfile');
+  //   // if (id === 'vehicle') navigation.navigate('VehicleDetails');
+  //   if (id === 'docs') navigation.navigate('DocumentsKYC');
+  //   if (id === 'help') navigation.navigate('HelpSupport');
+  //   if (id === 'bank') navigation.navigate('RiderBankPayment');
+  //   if (id === 'delete') setShowDeleteModal(true);
+  // };
   const handleMenuPress = (id: string) => {
-    if (id === 'edit') navigation.navigate('RiderEditProfile');
-    // if (id === 'vehicle') navigation.navigate('VehicleDetails');
-    // if (id === 'docs') navigation.navigate('DocumentsKYC');
-    if (id === 'help') navigation.navigate('HelpSupport');
-    if (id === 'bank') navigation.navigate('RiderBankPayment');
-    if (id === 'delete') setShowDeleteModal(true);
-  };
+  if (id === 'edit') rootNavigation.navigate('RiderEditProfile');
+  if (id === 'docs') rootNavigation.navigate('DocumentsKYC');
+  if (id === 'help') rootNavigation.navigate('HelpSupport');
+  if (id === 'bank') rootNavigation.navigate('RiderBankPayment');
+  if (id === 'delete') setShowDeleteModal(true);
+};
 
   return (
     <View style={styles.safeArea}>
@@ -124,9 +138,13 @@ const RiderProfileScreen: React.FC<Props> = ({ navigation }) => {
             <ActivityIndicator size="large" color={Colors.white} style={{ marginBottom: 8 }} />
           ) : (
             <>
-              <View style={styles.avatarCircle}>
-                <Text style={styles.avatarText}>{rider?.name ? getInitials(rider.name) : '?'}</Text>
-              </View>
+              {rider?.profilePhotoUrl ? (
+                <Image source={{ uri: rider.profilePhotoUrl }} style={styles.avatarImage} />
+              ) : (
+                <View style={styles.avatarCircle}>
+                  <Text style={styles.avatarText}>{rider?.name ? getInitials(rider.name) : '?'}</Text>
+                </View>
+              )}
               <Text style={styles.name}>{rider?.name || '—'}</Text>
               <TouchableOpacity
                 activeOpacity={0.7}
@@ -165,7 +183,7 @@ const RiderProfileScreen: React.FC<Props> = ({ navigation }) => {
 
         {/* Vehicle Details Summary */}
         <View style={styles.vehicleCard}>
-          <Text style={styles.vehicleTitle}>🚲  Vehicle Details</Text>
+          {/* <Text style={styles.vehicleTitle}>🚲  Vehicle Details</Text> */}
           <View style={styles.vehicleRow}>
             <Text style={styles.vehicleKey}>Type</Text>
             <Text style={styles.vehicleValue}>
@@ -180,28 +198,33 @@ const RiderProfileScreen: React.FC<Props> = ({ navigation }) => {
 
         {/* Menu Items */}
         <View style={styles.menu}>
-          {MENU_ITEMS.map((item, index) => (
-            <TouchableOpacity
-              key={item.id}
-              style={[
-                styles.menuItem,
-                index < MENU_ITEMS.length - 1 && styles.menuItemBorder,
-              ]}
-              onPress={() => handleMenuPress(item.id)}
-              activeOpacity={0.7}>
-              <Image source={item.icon} style={styles.menuIcon} />
-              <Text style={[styles.menuLabel]}>
-                {item.label}
-              </Text>
-              <Text style={styles.chevron}>{'›'}</Text>
-            </TouchableOpacity>
-          ))}
+          {MENU_ITEMS.map((item, index) => {
+            const isDisabled = item.id === 'delete' && hasActiveBooking;
+            return (
+              <TouchableOpacity
+                key={item.id}
+                style={[
+                  styles.menuItem,
+                  index < MENU_ITEMS.length - 1 && styles.menuItemBorder,
+                  isDisabled && styles.menuItemDisabled,
+                ]}
+                onPress={() => handleMenuPress(item.id)}
+                activeOpacity={0.7}
+                disabled={isDisabled}>
+                <Image source={item.icon} style={[styles.menuIcon, isDisabled && styles.menuIconDisabled]} />
+                <Text style={[styles.menuLabel, isDisabled && styles.menuLabelDisabled]}>
+                  {item.label}
+                </Text>
+                <Text style={styles.chevron}>{'›'}</Text>
+              </TouchableOpacity>
+            );
+          })}
         </View>
 
         {/* Log Out */}
         <TouchableOpacity
           style={styles.logoutBtn}
-          onPress={() => { clearToken(); navigation.navigate('Login'); }}
+          onPress={handleLogout}
           activeOpacity={0.7}>
           <Text style={styles.logoutText}>Log Out</Text>
         </TouchableOpacity>
@@ -299,6 +322,12 @@ const styles = StyleSheet.create({
     paddingTop: 24,
     paddingBottom: 28,
   },
+  avatarImage: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    marginBottom: 12,
+  },
   avatarCircle: {
     width: 72,
     height: 72,
@@ -370,9 +399,12 @@ const styles = StyleSheet.create({
     width: 22,
     height: 22,
     resizeMode: 'contain',
-    marginRight:10,
+    marginRight: 10,
   },
   menuLabel: { flex: 1, fontSize: 15, color: Colors.textDark, fontWeight: '500' },
+  menuItemDisabled: { opacity: 0.4 },
+  menuIconDisabled: { tintColor: Colors.textGray },
+  menuLabelDisabled: { color: Colors.textGray },
   chevron: { fontSize: 20, color: Colors.textGray, lineHeight: 22 },
 
   // Logout

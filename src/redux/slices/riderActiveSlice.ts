@@ -35,15 +35,39 @@ interface Booking {
   distanceKm?: number;
 }
 
+interface Customer {
+  name: string;
+  phone: string;
+}
+
+interface CancelledBooking {
+  _id: string;
+  bookingNumber: string;
+  pickupAddress: string;
+  dropoffAddress: string;
+  fare: number;
+  cancelReason: string;
+  cancelledAt: string;
+  customer: { name: string; phone: string };
+  receiver: { name: string; phone: string };
+}
+
 interface RiderActiveData {
   booking: Booking | null;
+  distanceKm: number | null;
+  etaMinutes: number | null;
+  customer: Customer | null;
+  cancelled: CancelledBooking | null;
 }
+
+export type { CancelledBooking };
 
 interface RiderActiveState {
   loading: boolean;
   success: boolean;
   error: string | null;
   data: RiderActiveData | null;
+  skipRestore: boolean;
 }
 
 const initialState: RiderActiveState = {
@@ -51,6 +75,7 @@ const initialState: RiderActiveState = {
   success: false,
   error: null,
   data: null,
+  skipRestore: false,
 };
 
 const riderActiveSlice = createSlice({
@@ -62,6 +87,10 @@ const riderActiveSlice = createSlice({
       state.success = false;
       state.error = null;
       state.data = null;
+      state.skipRestore = false;
+    },
+    setSkipRestore(state) {
+      state.skipRestore = true;
     },
   },
   extraReducers: builder => {
@@ -82,6 +111,10 @@ const riderActiveSlice = createSlice({
         state.success = true;
         state.data = {
           booking: action.payload?.booking ?? null,
+          distanceKm: action.payload?.distanceKm ?? null,
+          etaMinutes: action.payload?.etaMinutes ?? null,
+          customer: action.payload?.customer ?? null,
+          cancelled: action.payload?.cancelled ?? null,
         };
       },
     );
@@ -97,5 +130,5 @@ const riderActiveSlice = createSlice({
   },
 });
 
-export const { resetRiderActive } = riderActiveSlice.actions;
+export const { resetRiderActive , setSkipRestore  } = riderActiveSlice.actions;
 export default riderActiveSlice.reducer;

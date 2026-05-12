@@ -24,6 +24,7 @@ export function* updateRiderProfileSaga({ payload }: UpdateRiderProfilePayload):
           email:            payload.email,
           vehicleNumber:    payload.vehicleNumber,
           emergencyContact: payload.emergencyContact,
+          ...(payload.profilePhotoUrl ? { profilePhotoUrl: payload.profilePhotoUrl } : {}),
         }),
       },
       RIDER_BASE_URL,
