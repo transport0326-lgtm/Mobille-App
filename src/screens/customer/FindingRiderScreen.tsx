@@ -17,11 +17,16 @@ import { RootStackParamList } from '../../navigation/AppNavigator';
 import { Colors } from '../../theme/theme';
 import { useSelector, useDispatch } from 'react-redux';
 import { trackBooking } from '../../redux/sagas/booking/trackBookingAction';
-import { resetTrackBooking } from '../../redux/slices/bookingSlice';
+import {
+  resetTrackBooking,
+  resetCreateBooking,
+  setCustomerSkipRestore,
+} from '../../redux/slices/bookingSlice';
+import { saveActiveBooking } from '../../utils/tokenStorage';
 import Loader from '../../components/Loader';
 
 const { width, height } = Dimensions.get('window');
-const RADAR_HEIGHT = height * 0.40;
+const RADAR_HEIGHT = height * 0.4;
 const CENTER_X = width / 2;
 const CENTER_Y = RADAR_HEIGHT / 2;
 
@@ -31,7 +36,7 @@ type FindingRiderScreenProps = {
 };
 
 const RIDERS = [
-  { angle: 200, distance: width * 0.30 },
+  { angle: 200, distance: width * 0.3 },
   { angle: 40, distance: width * 0.28 },
   { angle: 310, distance: width * 0.22 },
   { angle: 150, distance: width * 0.18 },
@@ -75,10 +80,18 @@ const RippleWave: React.FC<{ delay: number }> = ({ delay }) => {
           ]),
         ]),
         Animated.parallel([
-          Animated.timing(scale, { toValue: 0, duration: 0, useNativeDriver: true }),
-          Animated.timing(opacity, { toValue: 0, duration: 0, useNativeDriver: true }),
+          Animated.timing(scale, {
+            toValue: 0,
+            duration: 0,
+            useNativeDriver: true,
+          }),
+          Animated.timing(opacity, {
+            toValue: 0,
+            duration: 0,
+            useNativeDriver: true,
+          }),
         ]),
-      ])
+      ]),
     );
     loop.start();
     return () => loop.stop();
@@ -101,7 +114,11 @@ const RippleWave: React.FC<{ delay: number }> = ({ delay }) => {
   );
 };
 
-const RiderDot: React.FC<{ left: number; top: number; delay: number }> = ({ left, top, delay }) => {
+const RiderDot: React.FC<{ left: number; top: number; delay: number }> = ({
+  left,
+  top,
+  delay,
+}) => {
   const bounce = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -120,7 +137,7 @@ const RiderDot: React.FC<{ left: number; top: number; delay: number }> = ({ left
           easing: Easing.inOut(Easing.ease),
           useNativeDriver: true,
         }),
-      ])
+      ]),
     );
     loop.start();
     return () => loop.stop();
@@ -131,7 +148,8 @@ const RiderDot: React.FC<{ left: number; top: number; delay: number }> = ({ left
       style={[
         styles.riderDot,
         { left, top, transform: [{ translateY: bounce }] },
-      ]}>
+      ]}
+    >
       <View style={styles.personIcon}>
         <View style={styles.personHead} />
         <View style={styles.personBody} />
@@ -140,16 +158,21 @@ const RiderDot: React.FC<{ left: number; top: number; delay: number }> = ({ left
   );
 };
 
-
-const FindingRiderScreen: React.FC<FindingRiderScreenProps> = ({ navigation, route }) => {
+const FindingRiderScreen: React.FC<FindingRiderScreenProps> = ({
+  navigation,
+  route,
+}) => {
   const { pickup, dropoff, bookingId } = route.params;
   const dispatch = useDispatch();
-  const trackingData = useSelector((state: any) => state.booking.trackBooking?.data);
+  const trackingData = useSelector(
+    (state: any) => state.booking.trackBooking?.data,
+  );
   const intervalRef = useRef<any>(null);
   const timeoutRef = useRef<any>(null);
   const hasNavigated = useRef(false);
 
   useEffect(() => {
+    if (bookingId) saveActiveBooking(bookingId);
     dispatch(resetTrackBooking());
 
     timeoutRef.current = setTimeout(() => {
@@ -184,16 +207,23 @@ const FindingRiderScreen: React.FC<FindingRiderScreenProps> = ({ navigation, rou
 
     const status = trackingData?.booking?.status ?? '';
     const rider = trackingData?.rider ?? null;
-    const b    = trackingData?.booking ?? null;
+    const b = trackingData?.booking ?? null;
 
     const stopTimers = () => {
-      if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
-      if (timeoutRef.current)  { clearTimeout(timeoutRef.current);  timeoutRef.current  = null; }
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
     };
 
     // assigned / going_to_pickup → BookingConfirmed
     if (
-      rider && (rider._id || rider.name) &&
+      rider &&
+      (rider._id || rider.name) &&
       ['assigned', 'going_to_pickup'].includes(status)
     ) {
       hasNavigated.current = true;
@@ -211,21 +241,23 @@ const FindingRiderScreen: React.FC<FindingRiderScreenProps> = ({ navigation, rou
       stopTimers();
       navigation.reset({
         index: 0,
-        routes: [{
-          name: 'ReviewBooking',
-          params: {
-            pickup:       b?.pickupLocation?.address || '',
-            dropoff:      b?.dropoffLocation?.address || '',
-            vehicleType:  b?.vehicleType || 'bike',
-            receiverName: b?.receiverName || '',
-            receiverPhone: b?.receiverPhone || '',
-            pickupLat:   b?.pickupLocation?.coordinates?.lat  || 0,
-            pickupLng:   b?.pickupLocation?.coordinates?.lng  || 0,
-            dropoffLat:  b?.dropoffLocation?.coordinates?.lat || 0,
-            dropoffLng:  b?.dropoffLocation?.coordinates?.lng || 0,
-            bookingId:   b?._id,
+        routes: [
+          {
+            name: 'ReviewBooking',
+            params: {
+              pickup: b?.pickupLocation?.address || '',
+              dropoff: b?.dropoffLocation?.address || '',
+              vehicleType: b?.vehicleType || 'bike',
+              receiverName: b?.receiverName || '',
+              receiverPhone: b?.receiverPhone || '',
+              pickupLat: b?.pickupLocation?.coordinates?.lat || 0,
+              pickupLng: b?.pickupLocation?.coordinates?.lng || 0,
+              dropoffLat: b?.dropoffLocation?.coordinates?.lat || 0,
+              dropoffLng: b?.dropoffLocation?.coordinates?.lng || 0,
+              bookingId: b?._id,
+            },
           },
-        }],
+        ],
       });
       return;
     }
@@ -234,30 +266,88 @@ const FindingRiderScreen: React.FC<FindingRiderScreenProps> = ({ navigation, rou
     if (['completed', 'delivered'].includes(status)) {
       hasNavigated.current = true;
       stopTimers();
+      const fd = trackingData?.fareBreakdown;
       navigation.reset({
         index: 0,
-        routes: [{
-          name: 'BookingOTP',
-          params: {
-            otp:         b?.deliveryOtp  || '',
-            bookingId:   b?._id          || '',
-            pickup:      b?.pickupLocation?.address  || '',
-            dropoff:     b?.dropoffLocation?.address || '',
-            vehicleType: b?.vehicleType  || 'bike',
-            distanceKm:  0,
-            platformFee: b?.platformFee  || 0,
-            total:       b?.fare         || 0,
+        routes: [
+          {
+            name: 'BookingOTP',
+            params: {
+              otp: b?.deliveryOtp || '',
+              bookingId: b?._id || '',
+              pickup: b?.pickupLocation?.address || '',
+              dropoff: b?.dropoffLocation?.address || '',
+              vehicleType: b?.vehicleType || 'bike',
+              distanceKm: fd?.distanceKm ?? trackingData?.distanceKm ?? 0,
+              baseFare: fd?.baseFare ?? 0,
+              ratePerKm: fd?.perKmRate ?? 0,
+              platformFee: fd?.platformFee ?? b?.platformFee ?? 0,
+              total: fd?.totalAmount ?? b?.fare ?? 0,
+              riderName: rider?.name,
+              vehicleNumber: rider?.vehicleNumber,
+              bookingNumber: b?.bookingNumber,
+            },
           },
-        }],
+        ],
       });
       return;
     }
 
-    // cancelled → CustomerDashboard
+    // cancelled → route based on cancelledBy
     if (status === 'cancelled') {
       hasNavigated.current = true;
       stopTimers();
-      navigation.reset({ index: 0, routes: [{ name: 'CustomerDashboard' }] });
+      const cancelledBy = b?.cancelledBy ?? '';
+
+      if (cancelledBy === 'system') {
+        navigation.reset({
+          index: 0,
+          routes: [{
+            name: 'NoRiders',
+            params: {
+              pickup: b?.pickupLocation?.address ?? pickup,
+              dropoff: b?.dropoffLocation?.address ?? dropoff,
+              bookingId: b?._id ?? bookingId,
+              vehicleType: b?.vehicleType,
+              receiverName: b?.receiverName,
+              receiverPhone: b?.receiverPhone,
+              pickupLat: b?.pickupLocation?.coordinates?.lat,
+              pickupLng: b?.pickupLocation?.coordinates?.lng,
+              dropoffLat: b?.dropoffLocation?.coordinates?.lat,
+              dropoffLng: b?.dropoffLocation?.coordinates?.lng,
+            },
+          }],
+        });
+      } else if (cancelledBy === 'customer' || cancelledBy === 'user') {
+        navigation.reset({
+          index: 0,
+          routes: [{ name: 'CustomerDashboard' }],
+        });
+      } else {
+        // cancelledBy === 'rider'
+        navigation.reset({
+          index: 0,
+          routes: [
+            {
+              name: 'CustomerBookingCancelled',
+              params: {
+                bookingId: b?._id ?? '',
+                bookingNumber: b?.bookingNumber ?? '',
+                pickup: b?.pickupLocation?.address ?? pickup,
+                dropoff: b?.dropoffLocation?.address ?? dropoff,
+                vehicleType: b?.vehicleType ?? 'bike',
+                receiverName: b?.receiverName ?? '',
+                receiverPhone: b?.receiverPhone ?? '',
+                pickupLat: b?.pickupLocation?.coordinates?.lat ?? 0,
+                pickupLng: b?.pickupLocation?.coordinates?.lng ?? 0,
+                dropoffLat: b?.dropoffLocation?.coordinates?.lat ?? 0,
+                dropoffLng: b?.dropoffLocation?.coordinates?.lng ?? 0,
+                cancelReason: b?.cancelReason ?? '',
+              },
+            },
+          ],
+        });
+      }
       return;
     }
   }, [trackingData]);
@@ -274,7 +364,26 @@ const FindingRiderScreen: React.FC<FindingRiderScreenProps> = ({ navigation, rou
     <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
       <StatusBar barStyle="light-content" backgroundColor={Colors.secondary} />
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+        <TouchableOpacity
+          onPress={() => {
+            hasNavigated.current = true;
+            dispatch(resetCreateBooking());
+            dispatch(setCustomerSkipRestore());
+            if (intervalRef.current) {
+              clearInterval(intervalRef.current);
+              intervalRef.current = null;
+            }
+            if (timeoutRef.current) {
+              clearTimeout(timeoutRef.current);
+              timeoutRef.current = null;
+            }
+            navigation.reset({
+              index: 0,
+              routes: [{ name: 'CustomerDashboard' }],
+            });
+          }}
+          style={styles.backBtn}
+        >
           <Image
             source={require('../../assets/icons/arrow.png')}
             style={styles.backArrow}
@@ -298,11 +407,16 @@ const FindingRiderScreen: React.FC<FindingRiderScreenProps> = ({ navigation, rou
       </View>
 
       <View style={styles.bottomSheet}>
-        {!trackingData?.rider && <View style={{ marginBottom: 18 }}><Loader /></View>}
+        {!trackingData?.rider && (
+          <View style={{ marginBottom: 18 }}>
+            <Loader />
+          </View>
+        )}
 
         <Text style={styles.findingTitle}>Finding your rider...</Text>
         <Text style={styles.findingSubtitle}>
-          Looking for nearby riders to pick up{'\n'}your parcel. This usually takes 30-60 seconds.
+          Looking for nearby riders to pick up{'\n'}your parcel. This usually
+          takes 30-60 seconds.
         </Text>
 
         <View style={styles.locationCard}>
@@ -310,15 +424,29 @@ const FindingRiderScreen: React.FC<FindingRiderScreenProps> = ({ navigation, rou
             <View style={[styles.locDot, { backgroundColor: '#22C55E' }]} />
             <View style={styles.locTextWrap}>
               <Text style={styles.locType}>PICKUP</Text>
-              <Text style={styles.locAddress} numberOfLines={2} ellipsizeMode="tail">{pickup || 'Salt Lake Sector V, Kolkata'}</Text>
+              <Text
+                style={styles.locAddress}
+                numberOfLines={2}
+                ellipsizeMode="tail"
+              >
+                {pickup || 'Salt Lake Sector V, Kolkata'}
+              </Text>
             </View>
           </View>
           <View style={styles.locationDivider} />
           <View style={styles.locationRow}>
-            <View style={[styles.locDot, { backgroundColor: Colors.primary }]} />
+            <View
+              style={[styles.locDot, { backgroundColor: Colors.primary }]}
+            />
             <View style={styles.locTextWrap}>
               <Text style={styles.locType}>DROP-OFF</Text>
-              <Text style={styles.locAddress} numberOfLines={2} ellipsizeMode="tail">{dropoff || 'Park Street, Kolkata'}</Text>
+              <Text
+                style={styles.locAddress}
+                numberOfLines={2}
+                ellipsizeMode="tail"
+              >
+                {dropoff || 'Park Street, Kolkata'}
+              </Text>
             </View>
           </View>
         </View>
@@ -327,11 +455,18 @@ const FindingRiderScreen: React.FC<FindingRiderScreenProps> = ({ navigation, rou
           style={styles.cancelBtn}
           onPress={() => {
             hasNavigated.current = true;
-            if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
-            if (timeoutRef.current)  { clearTimeout(timeoutRef.current);  timeoutRef.current  = null; }
+            if (intervalRef.current) {
+              clearInterval(intervalRef.current);
+              intervalRef.current = null;
+            }
+            if (timeoutRef.current) {
+              clearTimeout(timeoutRef.current);
+              timeoutRef.current = null;
+            }
             navigation.navigate('CancelBooking', { bookingId });
           }}
-          activeOpacity={0.8}>
+          activeOpacity={0.8}
+        >
           <Text style={styles.cancelBtnText}>Cancel Booking</Text>
         </TouchableOpacity>
       </View>
@@ -370,7 +505,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     marginLeft: 12,
   },
-
 
   radarArea: {
     width: width,
@@ -477,8 +611,17 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
     marginBottom: 2,
   },
-  locAddress: { fontSize: 14, fontWeight: '600', color: Colors.textDark, flexShrink: 1 },
-  locationDivider: { height: 1, backgroundColor: Colors.borderGray, marginLeft: 22 },
+  locAddress: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.textDark,
+    flexShrink: 1,
+  },
+  locationDivider: {
+    height: 1,
+    backgroundColor: Colors.borderGray,
+    marginLeft: 22,
+  },
 
   cancelBtn: {
     width: '100%',

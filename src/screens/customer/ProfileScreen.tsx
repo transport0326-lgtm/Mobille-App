@@ -129,7 +129,9 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({
       {/* Menu Items */}
       <View style={styles.menu}>
         {MENU_ITEMS.map((item, index) => {
-          const isDisabled = item.id === 'delete' && hasActiveBooking;
+          const isDisabled =
+            (item.id === 'edit' && hasActiveBooking) ||
+            (item.id === 'delete' && hasActiveBooking);
           return (
             <TouchableOpacity
               key={item.id}
@@ -142,9 +144,14 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({
               activeOpacity={0.7}
               disabled={isDisabled}>
               <Image source={item.icon} style={[styles.menuIcon, isDisabled && styles.menuIconDisabled]} />
-              <Text style={[styles.menuLabel, isDisabled && styles.menuLabelDisabled]}>
-                {item.label}
-              </Text>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.menuLabel, isDisabled && styles.menuLabelDisabled]}>
+                  {item.label}
+                </Text>
+                {item.id === 'edit' && isDisabled && (
+                  <Text style={styles.menuHint}>Active booking in progress</Text>
+                )}
+              </View>
               <Text style={styles.chevron}>{'›'}</Text>
             </TouchableOpacity>
           );
@@ -272,6 +279,7 @@ const styles = StyleSheet.create({
   menuItemDisabled: { opacity: 0.4 },
   menuIconDisabled: { tintColor: Colors.textGray },
   menuLabelDisabled: { color: Colors.textGray },
+  menuHint: { fontSize: 11, color: Colors.textGray, marginTop: 1 },
   chevron: {
     fontSize: 20,
     color: Colors.textGray,

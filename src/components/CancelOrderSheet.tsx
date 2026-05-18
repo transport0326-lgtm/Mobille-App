@@ -9,7 +9,10 @@ import {
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
+  Alert,
 } from 'react-native';
+import { apiRequest, BOOKING_BASE_URL } from '../config/api.config';
 
 const REASONS = [
   { icon: '🔧', label: 'Vehicle breakdown / technical issue' },
@@ -23,28 +26,70 @@ const REASONS = [
 interface Props {
   visible: boolean;
   onClose: () => void;
+  bookingId: string;
+  onConfirm?: (cancelledBy: string, cancelled?: any) => void;
 }
 
-const CancelOrderSheet: React.FC<Props> = ({ visible, onClose }) => {
+const CancelOrderSheet: React.FC<Props> = ({
+  visible,
+  onClose,
+  bookingId,
+  onConfirm,
+}) => {
   const [selected, setSelected] = useState<number | null>(null);
   const [note, setNote] = useState('');
+  const [cancelling, setCancelling] = useState(false);
 
   const handleClose = () => {
+    if (cancelling) return;
     setSelected(null);
     setNote('');
     onClose();
   };
+
+  const handleConfirm = async () => {
+    const reason = note.trim() !== '' ? note.trim() : REASONS[selected!].label;
+    setCancelling(true);
+    try {
+      const response = await apiRequest<any>(
+        `bookings/${bookingId}/rider-cancel`,
+        {
+          method: 'PATCH',
+          body: JSON.stringify({ reason }),
+        },
+        BOOKING_BASE_URL,
+      );
+      const cancelledBy: string = response.data?.cancelled?.cancelledBy ?? 'rider';
+      const cancelled = response.data?.cancelled;
+      setSelected(null);
+      setNote('');
+      onConfirm?.(cancelledBy, cancelled);
+      onClose();
+    } catch (err: any) {
+      Alert.alert('Error', err?.message ?? 'Failed to cancel booking. Please try again.');
+    } finally {
+      setCancelling(false);
+    }
+  };
+
+  const isDisabled = selected === null && note.trim() === '';
 
   return (
     <Modal
       visible={visible}
       transparent
       animationType="slide"
-      onRequestClose={handleClose}>
+      onRequestClose={handleClose}
+    >
       <KeyboardAvoidingView
         style={styles.overlay}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-        <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={handleClose} />
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        <TouchableOpacity
+          style={styles.backdrop}
+          activeOpacity={1}
+          onPress={handleClose}
+        />
 
         <View style={styles.sheet}>
           {/* Drag handle */}
@@ -59,8 +104,8 @@ const CancelOrderSheet: React.FC<Props> = ({ visible, onClose }) => {
 
           <ScrollView
             showsVerticalScrollIndicator={false}
-            contentContainerStyle={styles.scrollContent}>
-
+            contentContainerStyle={styles.scrollContent}
+          >
             {/* Reason options */}
             {REASONS.map((reason, index) => {
               const isSelected = selected === index;
@@ -68,13 +113,24 @@ const CancelOrderSheet: React.FC<Props> = ({ visible, onClose }) => {
                 <TouchableOpacity
                   key={index}
                   activeOpacity={0.8}
-                  style={[styles.reasonRow, isSelected && styles.reasonRowSelected]}
-                  onPress={() => setSelected(index)}>
+                  style={[
+                    styles.reasonRow,
+                    isSelected && styles.reasonRowSelected,
+                  ]}
+                  onPress={() => setSelected(index)}
+                >
                   <Text style={styles.reasonIcon}>{reason.icon}</Text>
-                  <Text style={[styles.reasonLabel, isSelected && styles.reasonLabelSelected]}>
+                  <Text
+                    style={[
+                      styles.reasonLabel,
+                      isSelected && styles.reasonLabelSelected,
+                    ]}
+                  >
                     {reason.label}
                   </Text>
-                  <View style={[styles.radio, isSelected && styles.radioSelected]}>
+                  <View
+                    style={[styles.radio, isSelected && styles.radioSelected]}
+                  >
                     {isSelected && <View style={styles.radioInner} />}
                   </View>
                 </TouchableOpacity>
@@ -93,21 +149,29 @@ const CancelOrderSheet: React.FC<Props> = ({ visible, onClose }) => {
 
             {/* Confirm button */}
             <TouchableOpacity
-              style={[styles.confirmBtn, selected === null && styles.confirmBtnDisabled]}
+              style={[
+                styles.confirmBtn,
+                (isDisabled || cancelling) && styles.confirmBtnDisabled,
+              ]}
               activeOpacity={0.85}
-              disabled={selected === null}
-              onPress={() => {}}>
-              <Text style={styles.confirmBtnText}>Confirm Cancellation</Text>
+              disabled={isDisabled || cancelling}
+              onPress={handleConfirm}
+            >
+              {cancelling
+                ? <ActivityIndicator color="#fff" size="small" />
+                : <Text style={styles.confirmBtnText}>Confirm Cancellation</Text>
+              }
             </TouchableOpacity>
 
             {/* Go Back */}
             <TouchableOpacity
               style={styles.goBackBtn}
               activeOpacity={0.85}
-              onPress={handleClose}>
+              onPress={handleClose}
+              disabled={cancelling}
+            >
               <Text style={styles.goBackBtnText}>Go Back</Text>
             </TouchableOpacity>
-
           </ScrollView>
         </View>
       </KeyboardAvoidingView>
@@ -121,7 +185,11 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   backdrop: {
-    ...StyleSheet.absoluteFillObject,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     backgroundColor: 'rgba(0,0,0,0.45)',
   },
   sheet: {

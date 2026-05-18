@@ -31,12 +31,16 @@ import rootChatSaga from './chat/chatSaga';
 import rootEarningsSaga from './rider/earningsSaga';
 import rootRiderDocumentsSaga from './rider/riderDocumentsSaga';
 import rootUserSupportSaga from './supportChat/userSupportSaga';
+import rootCancelRiderBookingSaga from './rider/cancelRiderBookingSaga';
+import rootSendChangePhoneOtpSaga from './profile/sendChangePhoneOtpSaga';
+import rootVerifyChangePhoneOtpSaga from './profile/verifyChangePhoneOtpSaga';
 
 // ─── Action name segments ─────────────────────────────────────────────────────
 
 export enum SagaActions {
   FETCH = 'FETCH',
   SEND = 'SEND',
+  POST = 'POST',
   SEND_OTP = 'SEND_OTP',
   VERIFY_OTP = 'VERIFY_OTP',
   REGISTER = 'REGISTER',
@@ -73,6 +77,9 @@ export enum SagaActions {
   RIDER_DOCUMENTS = 'RIDER_DOCUMENTS',
   FETCH_USER_SUPPORT_MESSAGES = 'FETCH_USER_SUPPORT_MESSAGES',
   SEND_USER_SUPPORT_MESSAGE = 'SEND_USER_SUPPORT_MESSAGE',
+  CANCEL_RIDER_BOOKING = 'CANCEL_RIDER_BOOKING',
+  CHANGE_PHONE_SEND_OTP = 'CHANGE_PHONE_SEND_OTP',
+  CHANGE_PHONE_VERIFY_OTP = 'CHANGE_PHONE_VERIFY_OTP',
 }
 
 export enum SagaActionType {
@@ -117,5 +124,8 @@ export default function* rootSaga() {
     call(rootEarningsSaga),
     call(rootRiderDocumentsSaga),
     call(rootUserSupportSaga),
+    call(rootCancelRiderBookingSaga),
+    call(rootSendChangePhoneOtpSaga),
+    call(rootVerifyChangePhoneOtpSaga),
   ]);
 }

@@ -30,6 +30,7 @@ import chatReducer from './slices/chatSlice';
 import earningsReducer from './slices/earningsSlice';
 import riderDocumentsReducer from './slices/riderDocumentsSlice';
 import userSupportMessagesReducer from './slices/userSupportMessagesSlice';
+import changePhoneReducer from './slices/changePhoneSlice';
 
 const sagaMiddleware = createSagaMiddleware();
 
@@ -74,6 +75,7 @@ const store = configureStore({
     earnings: earningsReducer,
     riderDocuments: riderDocumentsReducer,
     userSupportMessages: userSupportMessagesReducer,
+    changePhone: changePhoneReducer,
   },
   middleware: getDefaultMiddleware => {
     const base = getDefaultMiddleware({

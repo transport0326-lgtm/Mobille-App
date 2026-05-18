@@ -7,62 +7,77 @@ import { Colors } from '../theme/theme';
 type Props = {
   visible: boolean;
   onDismiss: () => void;
+  rejectionReason?: string | null;
 };
 
-const DocVerificationPopup: React.FC<Props> = ({ visible, onDismiss }) => (
-  <Modal visible={visible} transparent animationType="fade" statusBarTranslucent>
-    <View style={styles.overlay}>
-      <View style={styles.card}>
+const DocVerificationPopup: React.FC<Props> = ({ visible, onDismiss, rejectionReason }) => {
+  const isRejected = !!rejectionReason;
 
-        <View style={styles.iconCircle}>
-          <Image
-            source={require('../assets/icons/hourglass_top.png')}
-            style={{ width: 32, height: 32, resizeMode: 'contain' }}
-          />
-        </View>
+  return (
+    <Modal visible={visible} transparent animationType="fade" statusBarTranslucent>
+      <View style={styles.overlay}>
+        <View style={styles.card}>
 
-        <Text style={styles.title}>{'Document Verification\nPending'}</Text>
-
-        <Text style={styles.body}>
-          {'Your documents (DL & RC) are being reviewed by our team. You\'ll be able to go online and receive orders once your documents are verified.'}
-        </Text>
-
-        <View style={styles.statusBox}>
-          <View style={[styles.statusRow, styles.statusRowBorder]}>
-            <View style={styles.statusLeft}>
-              <MaterialIcons name="badge" size={18} color={Colors.secondary} />
-              <Text style={styles.statusLabel}>Driving License (DL)</Text>
-            </View>
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>Under Review</Text>
-            </View>
+          <View style={[styles.iconCircle, isRejected && styles.iconCircleRejected]}>
+            <Image
+              source={require('../assets/icons/hourglass_top.png')}
+              style={{ width: 32, height: 32, resizeMode: 'contain' }}
+            />
           </View>
-          <View style={styles.statusRow}>
-            <View style={styles.statusLeft}>
-              <MaterialIcons name="description" size={18} color={Colors.secondary} />
-              <Text style={styles.statusLabel}>RC Card</Text>
-            </View>
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>Under Review</Text>
-            </View>
-          </View>
-        </View>
 
-        <View style={styles.infoRow}>
-          <MaterialIcons name="info" size={16} color="#4D80E5" />
-          <Text style={styles.infoText}>
-            {"Usually takes 24-48 hours. We'll notify you once verified."}
+          <Text style={styles.title}>
+            {isRejected ? 'Documents Rejected' : 'Document Verification\nPending'}
           </Text>
+
+          <Text style={styles.body}>
+            {isRejected
+              ? rejectionReason
+              : "Your documents (DL & RC) are being reviewed by our team. You'll be able to go online and receive orders once your documents are verified."}
+          </Text>
+
+          <View style={styles.statusBox}>
+            <View style={[styles.statusRow, styles.statusRowBorder]}>
+              <View style={styles.statusLeft}>
+                <MaterialIcons name="badge" size={18} color={Colors.secondary} />
+                <Text style={styles.statusLabel}>Driving License (DL)</Text>
+              </View>
+              <View style={[styles.badge, isRejected && styles.badgeRejected]}>
+                <Text style={[styles.badgeText, isRejected && styles.badgeTextRejected]}>
+                  {isRejected ? 'Rejected' : 'Under Review'}
+                </Text>
+              </View>
+            </View>
+            <View style={styles.statusRow}>
+              <View style={styles.statusLeft}>
+                <MaterialIcons name="description" size={18} color={Colors.secondary} />
+                <Text style={styles.statusLabel}>RC Card</Text>
+              </View>
+              <View style={[styles.badge, isRejected && styles.badgeRejected]}>
+                <Text style={[styles.badgeText, isRejected && styles.badgeTextRejected]}>
+                  {isRejected ? 'Rejected' : 'Under Review'}
+                </Text>
+              </View>
+            </View>
+          </View>
+
+          <View style={styles.infoRow}>
+            <MaterialIcons name="info" size={16} color={isRejected ? '#E53E3E' : '#4D80E5'} />
+            <Text style={styles.infoText}>
+              {isRejected
+                ? 'Please re-upload your documents to get verified.'
+                : "Usually takes 24-48 hours. We'll notify you once verified."}
+            </Text>
+          </View>
+
+          <TouchableOpacity style={styles.btn} onPress={onDismiss} activeOpacity={0.85}>
+            <Text style={styles.btnText}>OK, I understand</Text>
+          </TouchableOpacity>
+
         </View>
-
-        <TouchableOpacity style={styles.btn} onPress={onDismiss} activeOpacity={0.85}>
-          <Text style={styles.btnText}>OK, I understand</Text>
-        </TouchableOpacity>
-
       </View>
-    </View>
-  </Modal>
-);
+    </Modal>
+  );
+};
 
 const styles = StyleSheet.create({
   overlay: {
@@ -176,6 +191,16 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: Colors.white,
+  },
+
+  iconCircleRejected: {
+    backgroundColor: '#FFE5E5',
+  },
+  badgeRejected: {
+    backgroundColor: 'rgba(229,62,62,0.12)',
+  },
+  badgeTextRejected: {
+    color: '#E53E3E',
   },
 });
 

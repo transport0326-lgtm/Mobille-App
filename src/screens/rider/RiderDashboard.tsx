@@ -1,5 +1,4 @@
 ﻿import React, { useState, useEffect, useRef } from 'react';
-import { clearToken } from '../../utils/tokenStorage';
 import { useDispatch, useSelector } from 'react-redux';
 import type { AppDispatch, RootState } from '../../redux/store';
 import { fetchRiderProfile } from '../../redux/sagas/profile/riderProfileAction';
@@ -8,6 +7,11 @@ import { resetGoOnline } from '../../redux/slices/goOnlineSlice';
 import { goOffline } from '../../redux/sagas/rider/goOfflineAction';
 import { resetGoOffline } from '../../redux/slices/goOfflineSlice';
 import { Platform, PermissionsAndroid, Image } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { apiRequest, RIDER_BASE_URL } from '../../config/api.config';
+import API_ENDPOINTS from '../../config/api.config';
+
+const ONLINE_PREF_KEY = 'rider_online_pref';
 import Geolocation from 'react-native-geolocation-service';
 import {
   View,
@@ -92,10 +96,15 @@ const RiderDashboard: React.FC<RiderDashboardProps> = ({
     (state: RootState) => state.notifications.unreadCount,
   );
 
-  const isOnline = homeData?.isOnline ?? false;
+  const serverIsOnline = homeData?.isOnline ?? false;
+  const isOnline = serverIsOnline && !userChosenOffline;
+  const isApproved = homeData?.isApproved ?? true;
 
-  const [showDocPopup, setShowDocPopup] = useState(true);
-  const handleDocPopupDismiss = () => setShowDocPopup(false);
+  const [docPopupDismissed, setDocPopupDismissed] = useState(false);
+  const handleDocPopupDismiss = () => setDocPopupDismissed(true);
+
+  const [userChosenOffline, setUserChosenOffline] = useState(false);
+  const [offlinePrefLoaded, setOfflinePrefLoaded] = useState(false);
 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const cancelledBookingIdRef = useRef<string | null>(null);
@@ -106,6 +115,22 @@ const RiderDashboard: React.FC<RiderDashboardProps> = ({
   // true only when user manually pressed the toggle — heartbeat sets it false
   const goOnlineManualRef = useRef(false);
   const sessionRestoredRef = useRef(false);
+
+  // Load persisted offline preference before any server data arrives
+  useEffect(() => {
+    AsyncStorage.getItem(ONLINE_PREF_KEY).then(pref => {
+      if (pref === 'offline') setUserChosenOffline(true);
+      setOfflinePrefLoaded(true);
+    });
+  }, []);
+
+  // If server says online but user explicitly chose offline, sync server back to offline
+  useEffect(() => {
+    if (!offlinePrefLoaded) return;
+    if (serverIsOnline && userChosenOffline) {
+      dispatch(goOffline());
+    }
+  }, [serverIsOnline, offlinePrefLoaded]);
 
   useEffect(() => {
     const getLocation = async () => {
@@ -262,6 +287,30 @@ const RiderDashboard: React.FC<RiderDashboardProps> = ({
 
   const handleGoOnline = async () => {
     try {
+      // Always fetch fresh approval status from server before going online
+      const homeResponse = await apiRequest<any>(
+        API_ENDPOINTS.RIDER_HOME,
+        { method: 'GET' },
+        RIDER_BASE_URL,
+      );
+      dispatch(fetchRiderHome()); // sync Redux store with fresh data
+      if (!homeResponse.data?.isApproved) {
+        Alert.alert('Approval Pending', 'Your account is under review. You can go online once approved.');
+        return;
+      }
+    } catch {
+      // If home API fails, fall back to cached value
+      if (!isApproved) {
+        Alert.alert('Approval Pending', 'Your account is under review. You can go online once approved.');
+        return;
+      }
+    }
+
+    // Clear offline preference — must happen before goOnline so the sync effect
+    // doesn't see userChosenOffline=true when serverIsOnline flips to true
+    setUserChosenOffline(false);
+    await AsyncStorage.setItem(ONLINE_PREF_KEY, 'online');
+    try {
       goOnlineManualRef.current = true; // user pressed toggle — show error if it fails
       const fcmToken = await getFCMToken().catch(() => null);
 
@@ -317,22 +366,14 @@ const RiderDashboard: React.FC<RiderDashboardProps> = ({
     }
   };
 
-  const handleLogout = () => {
-    if (pollRef.current) {
-      clearInterval(pollRef.current);
-      pollRef.current = null;
-    }
-    if (goOnlineIntervalRef.current) {
-      clearInterval(goOnlineIntervalRef.current);
-      goOnlineIntervalRef.current = null;
-    }
-    clearToken();
-    navigation.navigate('Login');
-  };
-
   const handleToggle = (value: boolean) => {
-    if (value) handleGoOnline();
-    else dispatch(goOffline());
+    if (value) {
+      handleGoOnline();
+    } else {
+      setUserChosenOffline(true);
+      AsyncStorage.setItem(ONLINE_PREF_KEY, 'offline');
+      dispatch(goOffline());
+    }
   };
 
   useEffect(() => {
@@ -405,8 +446,9 @@ useEffect(() => {
       <StatusBar barStyle="light-content" backgroundColor={Colors.secondary} />
 
       <DocVerificationPopup
-        visible={showDocPopup}
+        visible={!docPopupDismissed && homeData != null && !homeData.isApproved}
         onDismiss={handleDocPopupDismiss}
+        rejectionReason={homeData?.rejectionReason}
       />
 
       {activeTab === 'Home' && (
@@ -437,7 +479,9 @@ useEffect(() => {
                 <Text style={styles.bannerSub}>
                   {isOnline
                     ? 'Accepting delivery requests'
-                    : "You won't receive delivery requests"}
+                    : !isApproved
+                      ? 'Account pending approval — cannot go online'
+                      : "You won't receive delivery requests"}
                 </Text>
               </View>
               {goingOnline || goingOffline ? (
@@ -450,7 +494,7 @@ useEffect(() => {
                 <Switch
                   value={isOnline}
                   onValueChange={handleToggle}
-                  disabled={goingOnline || goingOffline}
+                  disabled={goingOnline || goingOffline || !isApproved}
                   trackColor={{ false: '#CCCCCC', true: '#22C55E' }}
                   thumbColor={Colors.white}
                 />
@@ -476,10 +520,7 @@ useEffect(() => {
         <RiderEarningsScreen navigation={navigation as any} />
       )}
       {activeTab === 'Profile' && (
-        <RiderProfileScreen
-          navigation={navigation as any}
-          onLogout={handleLogout}
-        />
+        <RiderProfileScreen />
       )}
 
       {/* Ongoing Delivery Banner — visible on all tabs */}

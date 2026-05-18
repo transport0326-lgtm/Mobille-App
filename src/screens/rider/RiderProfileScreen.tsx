@@ -92,6 +92,7 @@ const RiderProfileScreen: React.FC<Props> = () => {
 
   const riderActiveBooking = useSelector((state: RootState) => state.riderActive.data?.booking);
   const hasActiveBooking = !!riderActiveBooking && !['completed', 'cancelled'].includes(riderActiveBooking.status);
+  const isOnline = !!useSelector((state: RootState) => state.riderHome.data?.isOnline);
 
   const handleLogout = async () => {
     await clearToken();
@@ -199,7 +200,9 @@ const RiderProfileScreen: React.FC<Props> = () => {
         {/* Menu Items */}
         <View style={styles.menu}>
           {MENU_ITEMS.map((item, index) => {
-            const isDisabled = item.id === 'delete' && hasActiveBooking;
+            const isDisabled =
+              (item.id === 'edit' && isOnline) ||
+              (item.id === 'delete' && hasActiveBooking);
             return (
               <TouchableOpacity
                 key={item.id}
@@ -212,9 +215,14 @@ const RiderProfileScreen: React.FC<Props> = () => {
                 activeOpacity={0.7}
                 disabled={isDisabled}>
                 <Image source={item.icon} style={[styles.menuIcon, isDisabled && styles.menuIconDisabled]} />
-                <Text style={[styles.menuLabel, isDisabled && styles.menuLabelDisabled]}>
-                  {item.label}
-                </Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.menuLabel, isDisabled && styles.menuLabelDisabled]}>
+                    {item.label}
+                  </Text>
+                  {item.id === 'edit' && isDisabled && (
+                    <Text style={styles.menuHint}>Go offline to edit profile</Text>
+                  )}
+                </View>
                 <Text style={styles.chevron}>{'›'}</Text>
               </TouchableOpacity>
             );
@@ -405,6 +413,7 @@ const styles = StyleSheet.create({
   menuItemDisabled: { opacity: 0.4 },
   menuIconDisabled: { tintColor: Colors.textGray },
   menuLabelDisabled: { color: Colors.textGray },
+  menuHint: { fontSize: 11, color: Colors.textGray, marginTop: 1 },
   chevron: { fontSize: 20, color: Colors.textGray, lineHeight: 22 },
 
   // Logout

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   StyleSheet,
@@ -11,7 +11,9 @@ import {
   Image,
   Alert,
   ActivityIndicator,
+  Modal,
 } from 'react-native';
+import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { Text } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSelector, useDispatch } from 'react-redux';
@@ -19,6 +21,8 @@ import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
 import type { RootState, AppDispatch } from '../../redux/store';
 import { updateRiderProfile } from '../../redux/sagas/profile/updateRiderProfileAction';
 import { resetUpdateRiderProfile } from '../../redux/slices/updateRiderProfileSlice';
+import { sendChangePhoneOtp, verifyChangePhoneOtp } from '../../redux/sagas/profile/changePhoneAction';
+import { resetChangePhone, resetSendOtp } from '../../redux/slices/changePhoneSlice';
 import { uploadRiderPhoto } from '../../redux/sagas/profile/uploadRiderPhotoAction';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../navigation/AppNavigator';
@@ -41,6 +45,7 @@ const RiderEditProfileScreen: React.FC<Props> = ({ navigation }) => {
   const { data } = useSelector((state: RootState) => state.riderProfile);
   const { loading, success, error } = useSelector((state: RootState) => state.updateRiderProfile);
   const { loading: photoLoading, url: uploadedPhotoUrl } = useSelector((state: RootState) => state.uploadRiderPhoto);
+  const { sendOtp, verifyOtp } = useSelector((state: RootState) => state.changePhone);
   const rider = data?.rider;
 
   const [fullName, setFullName] = useState('');
@@ -51,6 +56,19 @@ const RiderEditProfileScreen: React.FC<Props> = ({ navigation }) => {
   const [emergencyContact, setEmergencyContact] = useState('');
   const existingPhotoUrl = rider?.profilePhotoUrl || null;
   const [photoUri, setPhotoUri] = useState<string | null>(null);
+
+  // Phone change modal
+  const [phoneModalVisible, setPhoneModalVisible] = useState(false);
+  const [modalStep, setModalStep] = useState<'phone' | 'otp'>('phone');
+  const [newPhone, setNewPhone] = useState('');
+  const [newPhoneError, setNewPhoneError] = useState('');
+  const [otpValues, setOtpValues] = useState(['', '', '', '']);
+  const otpRefs = [
+    useRef<TextInput>(null),
+    useRef<TextInput>(null),
+    useRef<TextInput>(null),
+    useRef<TextInput>(null),
+  ];
 
   useEffect(() => {
     if (rider) {
@@ -72,14 +90,12 @@ const RiderEditProfileScreen: React.FC<Props> = ({ navigation }) => {
 
   const isValidName = fullName.replace(/[^a-zA-Z]/g, '').length >= 3;
   const isValidEmail = (v: string) => /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(v);
-  const isValidPhone = (v: string) => /^[0-9]{10}$/.test(v.replace(/\s|-/g, ''));
   const isValidVehicleNumber = (v: string) => /^[A-Za-z]{2}-?\d{2}-?[A-Za-z]{0,2}-?\d{4}$/.test(v);
   const isValidEmergency = (v: string) => /^[0-9]{10}$/.test(v.replace(/\s|-/g, ''));
 
   const isFormValid =
     isValidName &&
     isValidEmail(email) &&
-    isValidPhone(phone) &&
     isValidVehicleNumber(vehicleNumber) &&
     isValidEmergency(emergencyContact);
 
@@ -128,24 +144,88 @@ const RiderEditProfileScreen: React.FC<Props> = ({ navigation }) => {
     ]);
   };
 
+  // ── Phone modal helpers ──────────────────────────────────────────────────────
+  const openPhoneModal = () => {
+    setNewPhone('');
+    setNewPhoneError('');
+    setOtpValues(['', '', '', '']);
+    setModalStep('phone');
+    setPhoneModalVisible(true);
+  };
+
+  const closePhoneModal = () => {
+    setPhoneModalVisible(false);
+    setModalStep('phone');
+    setNewPhone('');
+    setOtpValues(['', '', '', '']);
+    setNewPhoneError('');
+  };
+
+  useEffect(() => {
+    if (sendOtp.success) {
+      dispatch(resetSendOtp());
+      setModalStep('otp');
+      setTimeout(() => otpRefs[0].current?.focus(), 100);
+    }
+    if (sendOtp.error) setNewPhoneError(sendOtp.error);
+  }, [sendOtp.success, sendOtp.error]);
+
+  useEffect(() => {
+    if (verifyOtp.success) {
+      setPhone(newPhone.replace(/[^0-9]/g, ''));
+      dispatch(resetChangePhone());
+      closePhoneModal();
+    }
+  }, [verifyOtp.success]);
+
+  const handlePhoneContinue = () => {
+    const digits = newPhone.replace(/[^0-9]/g, '');
+    if (digits.length !== 10) {
+      setNewPhoneError('Enter a valid 10-digit mobile number.');
+      return;
+    }
+    setNewPhoneError('');
+    dispatch(sendChangePhoneOtp({ newPhone: digits }));
+  };
+
+  const handleOtpChange = (value: string, index: number) => {
+    const digit = value.replace(/[^0-9]/g, '').slice(-1);
+    const next = [...otpValues];
+    next[index] = digit;
+    setOtpValues(next);
+    if (digit && index < 3) otpRefs[index + 1].current?.focus();
+    if (next.every(d => d !== '')) handleOtpVerify(next);
+  };
+
+  const handleOtpKeyPress = (key: string, index: number) => {
+    if (key === 'Backspace' && !otpValues[index] && index > 0) {
+      otpRefs[index - 1].current?.focus();
+    }
+  };
+
+  const handleOtpVerify = (values: string[] = otpValues) => {
+    if (values.some(d => d === '')) return;
+    dispatch(verifyChangePhoneOtp({ newPhone: newPhone.replace(/[^0-9]/g, ''), otp: values.join('') }));
+  };
+
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
       <StatusBar barStyle="light-content" backgroundColor={Colors.secondary} />
 
       {/* Header */}
       <View style={styles.header}>
-              <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-                <Image
-                  source={require('../../assets/icons/arrow.png')}
-                  style={styles.backArrow}
-                />
-              </TouchableOpacity>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+          <Image
+            source={require('../../assets/icons/arrow.png')}
+            style={styles.backArrow}
+          />
+        </TouchableOpacity>
         <Text style={styles.headerTitle}>Edit Profile</Text>
       </View>
 
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView
           style={styles.scroll}
           contentContainerStyle={styles.scrollContent}
@@ -192,20 +272,21 @@ const RiderEditProfileScreen: React.FC<Props> = ({ navigation }) => {
               )}
             </View>
 
+            {/* Phone Number — read-only with edit icon */}
             <View style={styles.fieldGroup}>
               <Text style={styles.fieldLabel}>Phone Number</Text>
-              <TextInput
-                style={styles.fieldInput}
-                value={phone}
-                onChangeText={v => setPhone(v.replace(/[^0-9]/g, '').slice(0, 10))}
-                placeholder="Enter your phone number"
-                placeholderTextColor="#AAAAAA"
-                keyboardType="number-pad"
-                maxLength={10}
-              />
-              {phone.length > 0 && !isValidPhone(phone) && (
-                <Text style={styles.fieldError}>Enter a valid 10-digit phone number</Text>
-              )}
+              <View style={styles.phoneRow}>
+                <TextInput
+                  style={[styles.fieldInput, styles.phoneInput]}
+                  value={phone}
+                  editable={false}
+                  placeholder="Phone number"
+                  placeholderTextColor="#AAAAAA"
+                />
+                <TouchableOpacity style={styles.phoneEditBtn} onPress={openPhoneModal} activeOpacity={0.7}>
+                  <MaterialIcons name="edit" size={18} color={Colors.secondary} />
+                </TouchableOpacity>
+              </View>
             </View>
 
             <View style={styles.fieldGroup}>
@@ -261,7 +342,6 @@ const RiderEditProfileScreen: React.FC<Props> = ({ navigation }) => {
                 <Text style={styles.fieldError}>Enter a valid 10-digit phone number</Text>
               )}
             </View>
-
           </View>
         </ScrollView>
 
@@ -278,6 +358,97 @@ const RiderEditProfileScreen: React.FC<Props> = ({ navigation }) => {
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
+
+      {/* ── Phone Change Modal ───────────────────────────────────────────────── */}
+      <Modal visible={phoneModalVisible} transparent animationType="slide" onRequestClose={closePhoneModal}>
+        <KeyboardAvoidingView style={styles.modalOverlay} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+          <View style={styles.modalSheet}>
+
+            {/* Modal Header */}
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>
+                {modalStep === 'phone' ? 'Change Mobile Number' : 'Verify OTP'}
+              </Text>
+              <TouchableOpacity onPress={closePhoneModal} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                <MaterialIcons name="close" size={22} color={Colors.secondary} />
+              </TouchableOpacity>
+            </View>
+
+            {modalStep === 'phone' ? (
+              <>
+                <Text style={styles.modalSubtitle}>
+                  Enter your new mobile number. An OTP will be sent to verify it.
+                </Text>
+
+                <Text style={styles.modalLabel}>New Mobile Number</Text>
+                <View style={styles.modalInputRow}>
+                  <MaterialIcons name="phone" size={18} color="#808080" style={{ marginRight: 10 }} />
+                  <TextInput
+                    style={styles.modalInput}
+                    value={newPhone}
+                    onChangeText={v => { setNewPhone(v.replace(/[^0-9]/g, '').slice(0, 10)); setNewPhoneError(''); }}
+                    placeholder="Enter 10-digit number"
+                    placeholderTextColor="#AAAAAA"
+                    keyboardType="number-pad"
+                    maxLength={10}
+                    autoFocus
+                  />
+                </View>
+                {newPhoneError ? <Text style={styles.modalFieldError}>{newPhoneError}</Text> : null}
+
+                <TouchableOpacity
+                  style={[styles.modalBtn, (newPhone.length !== 10 || sendOtp.loading) && styles.modalBtnDisabled]}
+                  onPress={handlePhoneContinue}
+                  disabled={newPhone.length !== 10 || sendOtp.loading}
+                  activeOpacity={0.85}>
+                  {sendOtp.loading
+                    ? <ActivityIndicator color={Colors.white} />
+                    : <Text style={styles.modalBtnText}>Continue</Text>}
+                </TouchableOpacity>
+              </>
+            ) : (
+              <>
+                <Text style={styles.modalSubtitle}>
+                  Enter the 4-digit OTP sent to{' '}
+                  <Text style={{ fontWeight: '700', color: Colors.secondary }}>+91 {newPhone}</Text>
+                </Text>
+
+                <View style={styles.otpRow}>
+                  {otpValues.map((digit, i) => (
+                    <TextInput
+                      key={i}
+                      ref={otpRefs[i]}
+                      style={[styles.otpBox, digit ? styles.otpBoxFilled : null]}
+                      value={digit}
+                      onChangeText={v => handleOtpChange(v, i)}
+                      onKeyPress={({ nativeEvent }) => handleOtpKeyPress(nativeEvent.key, i)}
+                      keyboardType="number-pad"
+                      maxLength={1}
+                      textAlign="center"
+                    />
+                  ))}
+                </View>
+
+                {verifyOtp.error ? <Text style={styles.modalFieldError}>{verifyOtp.error}</Text> : null}
+
+                <TouchableOpacity
+                  style={[styles.modalBtn, (otpValues.some(d => !d) || verifyOtp.loading) && styles.modalBtnDisabled]}
+                  onPress={() => handleOtpVerify()}
+                  disabled={otpValues.some(d => !d) || verifyOtp.loading}
+                  activeOpacity={0.85}>
+                  {verifyOtp.loading
+                    ? <ActivityIndicator color={Colors.white} />
+                    : <Text style={styles.modalBtnText}>Verify & Update</Text>}
+                </TouchableOpacity>
+
+                <TouchableOpacity onPress={() => setModalStep('phone')} style={styles.backToPhoneBtn}>
+                  <Text style={styles.backToPhoneText}>Change number</Text>
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -288,7 +459,6 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
   },
 
-  // Header
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -360,9 +530,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  cameraEmoji: {
-    fontSize: 13,
-  },
+  cameraEmoji: { fontSize: 13 },
   changePhotoText: {
     fontSize: 13,
     fontWeight: '600',
@@ -386,9 +554,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     marginLeft: 2,
   },
-  fieldGroup: {
-    marginBottom: 4,
-  },
+  fieldGroup: { marginBottom: 4 },
   fieldLabel: {
     fontSize: 12,
     color: Colors.textGray,
@@ -411,6 +577,33 @@ const styles = StyleSheet.create({
     color: Colors.textGray,
   },
 
+  // Phone row with edit icon
+  phoneRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  phoneInput: {
+    flex: 1,
+    marginBottom: 0,
+    borderTopRightRadius: 0,
+    borderBottomRightRadius: 0,
+    borderRightWidth: 0,
+    backgroundColor: '#F3F4F6',
+    color: Colors.textGray,
+  },
+  phoneEditBtn: {
+    height: 52,
+    paddingHorizontal: 14,
+    backgroundColor: Colors.white,
+    borderWidth: 1,
+    borderColor: Colors.borderGray,
+    borderTopRightRadius: 10,
+    borderBottomRightRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
   footer: {
     paddingHorizontal: 16,
     paddingVertical: 16,
@@ -431,6 +624,113 @@ const styles = StyleSheet.create({
     color: Colors.white,
     fontSize: 16,
     fontWeight: '800',
+  },
+
+  // Modal
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'flex-end',
+  },
+  modalSheet: {
+    backgroundColor: Colors.white,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 24,
+    paddingTop: 24,
+    paddingBottom: 36,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  modalTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: Colors.secondary,
+  },
+  modalSubtitle: {
+    fontSize: 13,
+    color: Colors.textGray,
+    lineHeight: 20,
+    marginBottom: 20,
+  },
+  modalLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: Colors.textDark,
+    marginBottom: 8,
+  },
+  modalInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.inputBg,
+    borderWidth: 1,
+    borderColor: Colors.borderGray,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    height: 52,
+    marginBottom: 8,
+  },
+  modalInput: {
+    flex: 1,
+    fontSize: 15,
+    color: Colors.textDark,
+  },
+  modalFieldError: {
+    fontSize: 12,
+    color: '#DC2626',
+    marginBottom: 12,
+    marginLeft: 2,
+  },
+  modalBtn: {
+    backgroundColor: Colors.secondary,
+    borderRadius: 12,
+    paddingVertical: 15,
+    alignItems: 'center',
+    marginTop: 16,
+  },
+  modalBtnDisabled: { opacity: 0.5 },
+  modalBtnText: {
+    color: Colors.white,
+    fontSize: 15,
+    fontWeight: '700',
+  },
+
+  // OTP boxes
+  otpRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 14,
+    marginBottom: 8,
+    marginTop: 8,
+  },
+  otpBox: {
+    width: 56,
+    height: 56,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: Colors.borderGray,
+    backgroundColor: Colors.inputBg,
+    fontSize: 22,
+    fontWeight: '700',
+    color: Colors.secondary,
+  },
+  otpBoxFilled: {
+    borderColor: Colors.secondary,
+    backgroundColor: '#EFF3FF',
+  },
+  backToPhoneBtn: {
+    alignItems: 'center',
+    marginTop: 14,
+  },
+  backToPhoneText: {
+    fontSize: 13,
+    color: Colors.secondary,
+    fontWeight: '600',
+    textDecorationLine: 'underline',
   },
 });
 

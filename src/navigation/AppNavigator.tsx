@@ -1,6 +1,7 @@
 import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import Toast from 'react-native-toast-message';
 import NoInternetModal from '../components/NoInternetModal';
 
 // Shared
@@ -47,6 +48,9 @@ import DeliveryCompleteScreen from '../screens/rider/DeliveryCompleteScreen';
 import RiderNotificationsScreen from '../screens/rider/RiderNotificationsScreen';
 import RiderChatScreen from '../screens/rider/RiderChatScreen';
 import RiderBookingCancelledScreen from '../screens/rider/RiderBookingCancelledScreen';
+import RiderSuspendedScreen from '../screens/rider/RiderSuspendedScreen';
+import CustomerBookingCancelledScreen from '../screens/customer/CustomerBookingCancelledScreen';
+import PolicyScreen from '../screens/shared/PolicyScreen';
 
 export type RootStackParamList = {
   Splash: undefined;
@@ -54,7 +58,18 @@ export type RootStackParamList = {
   OTP: { phoneNumber: string };
   CreateAccount: { phoneNumber: string };
   FindingRider: { pickup: string; dropoff: string; bookingId: string; };
-  NoRiders: { pickup: string; dropoff: string ; bookingId: string; };
+  NoRiders: {
+    pickup: string;
+    dropoff: string;
+    bookingId: string;
+    vehicleType?: string;
+    receiverName?: string;
+    receiverPhone?: string;
+    pickupLat?: number;
+    pickupLng?: number;
+    dropoffLat?: number;
+    dropoffLng?: number;
+  };
   SetLocation: {
     type: 'pickup' | 'dropoff';
     currentPickup?: string;
@@ -103,6 +118,33 @@ export type RootStackParamList = {
     bookingNumber?: string;
   };
   CancelBooking: { bookingId: string };
+  Policy: {
+    phoneNumber: string;
+    role?: 'customer' | 'partner';
+    formData?: {
+      fullName: string;
+      email: string;
+      vehicleType?: string;
+      vehicleNumber?: string;
+      dlNumber?: string;
+      rcNumber?: string;
+      deliveryAddress?: string;
+    };
+  };
+  CustomerBookingCancelled: {
+    bookingId: string;
+    bookingNumber: string;
+    pickup: string;
+    dropoff: string;
+    vehicleType: string;
+    receiverName: string;
+    receiverPhone: string;
+    pickupLat: number;
+    pickupLng: number;
+    dropoffLat: number;
+    dropoffLng: number;
+    cancelReason?: string;
+  };
   BookingConfirmed: {
     booking: any;
     rider: any;
@@ -155,6 +197,13 @@ export type RootStackParamList = {
     bookingStatus: string;
     customerPhone?: string;
     bookingId?: string;
+  };
+  RiderSuspended: {
+    suspendedOn?: string;
+    suspendedBy?: string;
+    reason?: string;
+    suspensionType?: string;
+    reviewDate?: string;
   };
   MapPicker: {
     type: 'pickup' | 'dropoff';
@@ -213,9 +262,13 @@ const AppNavigator: React.FC = () => {
         <Stack.Screen name="Notifications" component={RiderNotificationsScreen} />
         <Stack.Screen name="RiderChat" component={RiderChatScreen} />
         <Stack.Screen name="RiderBookingCancelled" component={RiderBookingCancelledScreen} />
+        <Stack.Screen name="CustomerBookingCancelled" component={CustomerBookingCancelledScreen} />
+        <Stack.Screen name="Policy" component={PolicyScreen} />
+        <Stack.Screen name="RiderSuspended" component={RiderSuspendedScreen} />
       </Stack.Navigator>
     </NavigationContainer>
     <NoInternetModal />
+    <Toast />
     </>
   );
 };

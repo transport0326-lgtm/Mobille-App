@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
+  ScrollView,
   TextInput,
   Dimensions,
 } from 'react-native';
@@ -39,7 +40,7 @@ const OTPScreen: React.FC<OTPScreenProps> = ({ navigation, route }) => {
   );
 
   const [otp, setOtp] = useState<string[]>(new Array(OTP_LENGTH).fill(''));
-  const [timer, setTimer] = useState(300);
+  const [timer, setTimer] = useState(30);
   const [canResend, setCanResend] = useState(false);
   const inputRefs = useRef<(TextInput | null)[]>([]);
 
@@ -108,7 +109,7 @@ const OTPScreen: React.FC<OTPScreenProps> = ({ navigation, route }) => {
   const handleResend = () => {
     if (!canResend) return;
     setOtp(new Array(OTP_LENGTH).fill(''));
-    setTimer(300);
+    setTimer(30);
     setCanResend(false);
     inputRefs.current[0]?.focus();
     dispatch(sendOtp({ phone: phoneNumber }));
@@ -147,8 +148,11 @@ const OTPScreen: React.FC<OTPScreenProps> = ({ navigation, route }) => {
 
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-        <View style={styles.content}>
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <ScrollView
+          contentContainerStyle={styles.content}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}>
 
           {/* Logo */}
           <Image
@@ -214,7 +218,7 @@ const OTPScreen: React.FC<OTPScreenProps> = ({ navigation, route }) => {
             </Text>
           </TouchableOpacity>
 
-        </View>
+        </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -258,10 +262,11 @@ const styles = StyleSheet.create({
 
   // Content
   content: {
-    flex: 1,
+    flexGrow: 1,
     alignItems: 'center',
     paddingHorizontal: 28,
     paddingTop: 36,
+    paddingBottom: 24,
   },
   logo: {
     width: width * 0.38,

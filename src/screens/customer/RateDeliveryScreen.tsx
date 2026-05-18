@@ -7,6 +7,8 @@ import {
   ScrollView,
   TextInput as RNTextInput,
   Image,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { Text } from 'react-native-paper';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
@@ -73,6 +75,9 @@ const RateDeliveryScreen: React.FC<Props> = ({ navigation, route }) => {
         <Text style={styles.headerTitle}>Rate Your Delivery</Text>
       </View>
 
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView
         style={{ flex: 1 }}
         contentContainerStyle={styles.scrollContent}
@@ -182,6 +187,7 @@ const RateDeliveryScreen: React.FC<Props> = ({ navigation, route }) => {
 
         <View style={{ height: 20 }} />
       </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 };

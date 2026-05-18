@@ -24,6 +24,7 @@ type Props = {
 type DocStatus = 'Verified' | 'Expiring Soon' | 'Pending';
 
 const STATUS_MAP: Record<string, DocStatus> = {
+  approved:      'Verified',
   verified:      'Verified',
   expiring_soon: 'Expiring Soon',
   pending:       'Pending',

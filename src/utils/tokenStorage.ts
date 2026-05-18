@@ -1,8 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { setAuthToken } from '../config/api.config';
 
-const TOKEN_KEY     = 'authToken';
-const ROLE_KEY      = 'userRole';
+const TOKEN_KEY = 'authToken';
+const ROLE_KEY = 'userRole';
 const TIMESTAMP_KEY = 'loginTimestamp';
 
 /** Persist token to AsyncStorage and load it into the in-memory api.config slot. */

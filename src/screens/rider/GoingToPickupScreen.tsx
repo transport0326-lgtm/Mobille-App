@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   View,
   StyleSheet,
@@ -19,6 +19,7 @@ import type { RootState, AppDispatch } from '../../redux/store';
 import { useDispatch } from 'react-redux';
 import { updateBookingStatus } from '../../redux/sagas/rider/riderArrivedAction';
 import { setSkipRestore } from '../../redux/slices/riderActiveSlice';
+import { fetchMessages } from '../../redux/sagas/chat/chatAction';
 import CancelOrderSheet from '../../components/CancelOrderSheet';
 
 type GoingToPickupScreenProps = {
@@ -30,6 +31,11 @@ const GoingToPickupScreen: React.FC<GoingToPickupScreenProps> = ({
 }) => {
   const dispatch = useDispatch<AppDispatch>();
   const [showCancelSheet, setShowCancelSheet] = useState(false);
+  const [seenCustomerMsgCount, setSeenCustomerMsgCount] = useState(0);
+  const chatMessages = useSelector((state: RootState) => state.chat.messages);
+  const incomingMsgCount = chatMessages.filter(m => m.senderRole !== 'rider').length;
+  const hasUnread = incomingMsgCount > seenCustomerMsgCount;
+  const markSeenRef = useRef(() => {});
   const acceptedBooking = useSelector(
     (state: RootState) => state.acceptBooking.data?.booking,
   );
@@ -48,10 +54,26 @@ const GoingToPickupScreen: React.FC<GoingToPickupScreenProps> = ({
     .join('')
     .toUpperCase()
     .slice(0, 2);
-    useEffect(() => {
-  console.log('[GoingToPickup] MOUNTED');
-  return () => console.log('[GoingToPickup] UNMOUNTED');
-}, []);
+  markSeenRef.current = () => setSeenCustomerMsgCount(incomingMsgCount);
+
+  // Background message polling for unread dot
+  useEffect(() => {
+    if (!booking?._id) return;
+    dispatch(fetchMessages({ bookingId: booking._id }));
+    const id = setInterval(() => dispatch(fetchMessages({ bookingId: booking._id! })), 5000);
+    return () => clearInterval(id);
+  }, [booking?._id]);
+
+  // Returning from RiderChat clears the dot
+  useEffect(() => {
+    const unsub = navigation.addListener('focus', () => markSeenRef.current());
+    return unsub;
+  }, [navigation]);
+
+  useEffect(() => {
+    console.log('[GoingToPickup] MOUNTED');
+    return () => console.log('[GoingToPickup] UNMOUNTED');
+  }, []);
 
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
@@ -175,21 +197,25 @@ const GoingToPickupScreen: React.FC<GoingToPickupScreenProps> = ({
               </Text>
             </View>
             <View style={styles.actionBtns}>
-              <TouchableOpacity
-                style={styles.chatBtn}
-                activeOpacity={0.8}
-                onPress={() =>
-                  navigation.navigate('RiderChat', {
-                    customerName: senderName,
-                    bookingNumber: `BK-${booking?.bookingNumber ?? ''}`,
-                    bookingStatus: 'Going to Pickup',
-                    customerPhone: senderPhone,
-                    bookingId: booking?._id,
-                  })
-                }
-              >
-                <Text style={styles.chatBtnText}>💬 Chat</Text>
-              </TouchableOpacity>
+              <View style={{ position: 'relative' }}>
+                <TouchableOpacity
+                  style={styles.chatBtn}
+                  activeOpacity={0.8}
+                  onPress={() => {
+                    markSeenRef.current();
+                    navigation.navigate('RiderChat', {
+                      customerName: senderName,
+                      bookingNumber: `BK-${booking?.bookingNumber ?? ''}`,
+                      bookingStatus: 'Going to Pickup',
+                      customerPhone: senderPhone,
+                      bookingId: booking?._id,
+                    });
+                  }}
+                >
+                  <Text style={styles.chatBtnText}>💬 Chat</Text>
+                </TouchableOpacity>
+                {hasUnread && <View style={styles.unreadDot} />}
+              </View>
               <TouchableOpacity
                 style={styles.callBtn}
                 onPress={handleCall}
@@ -225,7 +251,8 @@ const GoingToPickupScreen: React.FC<GoingToPickupScreenProps> = ({
           <TouchableOpacity
             style={styles.cancelBtn}
             activeOpacity={0.85}
-            onPress={() => setShowCancelSheet(true)}>
+            onPress={() => setShowCancelSheet(true)}
+          >
             <Text style={styles.cancelBtnText}>Cancel Order</Text>
           </TouchableOpacity>
         </ScrollView>
@@ -234,6 +261,21 @@ const GoingToPickupScreen: React.FC<GoingToPickupScreenProps> = ({
       <CancelOrderSheet
         visible={showCancelSheet}
         onClose={() => setShowCancelSheet(false)}
+        bookingId={booking?._id ?? ''}
+        onConfirm={(cancelledBy, cancelled) => {
+          dispatch(setSkipRestore());
+          if (cancelledBy === 'customer' || cancelledBy === 'user') {
+            navigation.reset({
+              index: 0,
+              routes: [{ name: 'RiderBookingCancelled', params: { cancelled } }],
+            });
+          } else {
+            navigation.reset({
+              index: 0,
+              routes: [{ name: 'RiderDashboard' }],
+            });
+          }
+        }}
       />
     </SafeAreaView>
   );
@@ -446,6 +488,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   cancelBtnText: { color: '#EF4444', fontSize: 15, fontWeight: '700' },
+
+  unreadDot: {
+    position: 'absolute',
+    top: -3,
+    right: -3,
+    width: 11,
+    height: 11,
+    borderRadius: 6,
+    backgroundColor: '#EF4444',
+    borderWidth: 2,
+    borderColor: Colors.white,
+  },
 });
 
 export default GoingToPickupScreen;

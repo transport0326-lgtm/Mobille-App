@@ -119,7 +119,7 @@ const NoInternetModal: React.FC = () => {
 
 const styles = StyleSheet.create({
   screen: {
-    flex: 1,
+    flex: 0,
     backgroundColor: '#fff',
   },
   scrollContent: {
@@ -170,6 +170,7 @@ const styles = StyleSheet.create({
   satelliteWrapper: {
     position: 'relative',
     marginBottom: 14,
+    marginTop: 35
   },
   satelliteCircle: {
     width: 100,
@@ -230,6 +231,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '500',
     color: '#a6a6a6',
+    marginTop: 28
   },
 
   // ── Content ───────────────────────────────────────────────────

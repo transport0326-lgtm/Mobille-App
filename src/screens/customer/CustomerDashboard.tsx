@@ -16,6 +16,7 @@ import {
   Alert,
   Modal,
   FlatList,
+  KeyboardAvoidingView,
 } from 'react-native';
 import Contacts, { Contact } from 'react-native-contacts';
 import { Text } from 'react-native-paper';
@@ -26,9 +27,19 @@ import { Colors } from '../../theme/theme';
 import { fareEstimate } from '../../redux/sagas/booking/fareEstimateAction';
 import { createBooking } from '../../redux/sagas/booking/createBookingAction';
 import { trackBooking } from '../../redux/sagas/booking/trackBookingAction';
-import { resetBooking, resetTrackBooking } from '../../redux/slices/bookingSlice';
+import {
+  resetBooking,
+  resetTrackBooking,
+  resetFareEstimate,
+  setCustomerSkipRestore,
+} from '../../redux/slices/bookingSlice';
 import { fetchProfile } from '../../redux/sagas/profile/profileAction';
-import { clearToken, loadActiveBooking, clearActiveBooking } from '../../utils/tokenStorage';
+import {
+  clearToken,
+  loadActiveBooking,
+  clearActiveBooking,
+  loadRole,
+} from '../../utils/tokenStorage';
 import type { AppDispatch } from '../../redux/store';
 import AppHeader from '../../components/AppHeader';
 import OngoingDeliveryBanner from '../../components/OngoingDeliveryBanner';
@@ -38,7 +49,10 @@ import ProfileScreen from './ProfileScreen';
 import { Dimensions } from 'react-native';
 
 type CustomerDashboardProps = {
-  navigation: NativeStackNavigationProp<RootStackParamList, 'CustomerDashboard'>;
+  navigation: NativeStackNavigationProp<
+    RootStackParamList,
+    'CustomerDashboard'
+  >;
   route: RouteProp<RootStackParamList, 'CustomerDashboard'>;
 };
 
@@ -55,10 +69,38 @@ const SCREEN_WIDTH = Dimensions.get('window').width;
 const CARD_WIDTH = (SCREEN_WIDTH - 48) / 4;
 
 const VEHICLES: Vehicle[] = [
-  { id: 'bike', emoji: '🏍️', name: 'Bike', capacity: 'Up to 20 kg', fareMin: 45, fareMax: 60 },
-  { id: 'auto', emoji: '🛺', name: 'Auto', capacity: 'Up to 50 kg', fareMin: 70, fareMax: 90 },
-  { id: 'miniTruck', emoji: '🚚', name: 'Mini Truck', capacity: 'Up to 200 kg', fareMin: 150, fareMax: 200 },
-  { id: 'truck', emoji: '🚛', name: 'Truck', capacity: 'Up to 1000 kg', fareMin: 400, fareMax: 600 },
+  {
+    id: 'bike',
+    emoji: '🏍️',
+    name: 'Bike',
+    capacity: 'Up to 20 kg',
+    fareMin: 45,
+    fareMax: 60,
+  },
+  {
+    id: 'auto',
+    emoji: '🛺',
+    name: 'Auto',
+    capacity: 'Up to 50 kg',
+    fareMin: 70,
+    fareMax: 90,
+  },
+  {
+    id: 'miniTruck',
+    emoji: '🚚',
+    name: 'Mini Truck',
+    capacity: 'Up to 200 kg',
+    fareMin: 150,
+    fareMax: 200,
+  },
+  {
+    id: 'truck',
+    emoji: '🚛',
+    name: 'Truck',
+    capacity: 'Up to 1000 kg',
+    fareMin: 400,
+    fareMax: 600,
+  },
 ];
 
 type TabName = 'Home' | 'Orders' | 'Alerts' | 'Profile';
@@ -70,11 +112,16 @@ const TAB_ITEMS: { name: TabName; emoji: string }[] = [
   { name: 'Profile', emoji: '👤' },
 ];
 
-const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ navigation, route }) => {
+const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
+  navigation,
+  route,
+}) => {
   const dispatch = useDispatch<AppDispatch>();
-  const { loading: fareLoading, data: fareData, error: fareError } = useSelector(
-    (state: RootState) => state.booking.fareEstimate,
-  );
+  const {
+    loading: fareLoading,
+    data: fareData,
+    error: fareError,
+  } = useSelector((state: RootState) => state.booking.fareEstimate);
 
   const [pickup, setPickup] = useState(route.params?.confirmedPickup || '');
   const [dropoff, setDropoff] = useState(route.params?.confirmedDropoff || '');
@@ -92,9 +139,11 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ navigation, route
       'Customer',
   );
 
-  const { loading: bookingLoading, data: bookingData, error: bookingError } = useSelector(
-    (state: RootState) => state.booking.createBooking,
-  );
+  const {
+    loading: bookingLoading,
+    data: bookingData,
+    error: bookingError,
+  } = useSelector((state: RootState) => state.booking.createBooking);
 
   // Sync address labels when returning from SetLocation
   useEffect(() => {
@@ -112,29 +161,69 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ navigation, route
 
   // Fires whenever coords change in Redux (e.g. returning from SetLocationScreen).
   useEffect(() => {
-    console.log('[Dashboard] coords changed —', { pickupLat, pickupLng, dropoffLat, dropoffLng }, 'vehicle:', selectedVehicle);
-    if (pickupLat == null || pickupLng == null || dropoffLat == null || dropoffLng == null) {
+    console.log(
+      '[Dashboard] coords changed —',
+      { pickupLat, pickupLng, dropoffLat, dropoffLng },
+      'vehicle:',
+      selectedVehicle,
+    );
+    if (
+      pickupLat == null ||
+      pickupLng == null ||
+      dropoffLat == null ||
+      dropoffLng == null
+    ) {
       console.log('[Dashboard] coords incomplete, skipping fare estimate');
       return;
     }
     console.log('[Dashboard] dispatching fareEstimate on coord change');
-    dispatch(fareEstimate({ pickupLat, pickupLng, dropoffLat, dropoffLng, vehicleType: selectedVehicle }));
+    dispatch(
+      fareEstimate({
+        pickupLat,
+        pickupLng,
+        dropoffLat,
+        dropoffLng,
+        vehicleType: selectedVehicle,
+      }),
+    );
   }, [pickupLat, pickupLng, dropoffLat, dropoffLng]);
 
   // Re-fires when the user picks a different vehicle while the screen is already focused.
   const isFirstVehicleRender = React.useRef(true);
   useEffect(() => {
-    if (isFirstVehicleRender.current) { isFirstVehicleRender.current = false; return; }
-    console.log('[Dashboard] vehicle changed to', selectedVehicle, '— dispatching fareEstimate');
-    if (pickupLat == null || pickupLng == null || dropoffLat == null || dropoffLng == null) return;
-    dispatch(fareEstimate({ pickupLat, pickupLng, dropoffLat, dropoffLng, vehicleType: selectedVehicle }));
+    if (isFirstVehicleRender.current) {
+      isFirstVehicleRender.current = false;
+      return;
+    }
+    console.log(
+      '[Dashboard] vehicle changed to',
+      selectedVehicle,
+      '— dispatching fareEstimate',
+    );
+    if (
+      pickupLat == null ||
+      pickupLng == null ||
+      dropoffLat == null ||
+      dropoffLng == null
+    )
+      return;
+    dispatch(
+      fareEstimate({
+        pickupLat,
+        pickupLng,
+        dropoffLat,
+        dropoffLng,
+        vehicleType: selectedVehicle,
+      }),
+    );
   }, [selectedVehicle]);
-
 
   const [parcelDetails, setParcelDetails] = useState('');
   const [receiverName, setReceiverName] = useState('');
   const [receiverPhone, setReceiverPhone] = useState('');
-  const [activeTab, setActiveTab] = useState<TabName>(route.params?.tab || 'Home');
+  const [activeTab, setActiveTab] = useState<TabName>(
+    route.params?.tab || 'Home',
+  );
 
   const [contactsVisible, setContactsVisible] = useState(false);
   const [allContacts, setAllContacts] = useState<Contact[]>([]);
@@ -143,14 +232,30 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ navigation, route
 
   // Active booking tracking
   const [activeBookingId, setActiveBookingId] = useState<string | null>(null);
-  const customerPollRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
-  const trackData = useSelector((state: RootState) => state.booking.trackBooking.data);
-  const skipRestore = useSelector((state: RootState) => state.booking.skipRestore);
+  const customerPollRef = React.useRef<ReturnType<typeof setInterval> | null>(
+    null,
+  );
+  const trackData = useSelector(
+    (state: RootState) => state.booking.trackBooking.data,
+  );
+  const skipRestore = useSelector(
+    (state: RootState) => state.booking.skipRestore,
+  );
   const skipRestoreRef = React.useRef(false);
   skipRestoreRef.current = skipRestore;
+  console.log('skipRestore', skipRestore);
 
   useEffect(() => {
     dispatch(fetchProfile());
+    loadRole().then(role => {
+      if (role !== 'user') return;
+      loadActiveBooking().then(id => {
+        if (id) {
+          setActiveBookingId(id);
+          dispatch(trackBooking({ bookingId: id }));
+        }
+      });
+    });
   }, []);
 
   useEffect(() => {
@@ -160,17 +265,43 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ navigation, route
   }, [activeTab]);
 
   // Load persisted active booking on mount and start polling
+  // trackData ke basis par session restore navigation
   useEffect(() => {
+    console.log('[RESTORE] skipRestoreRef:', skipRestoreRef.current);
+    console.log('[RESTORE] booking status:', trackData?.booking?.status);
+    console.log('[RESTORE] skipRestoreRef on mount:', skipRestoreRef.current);
+
     if (skipRestoreRef.current) return;
-    loadActiveBooking().then(id => {
-      if (!id) return;
-      setActiveBookingId(id);
-      dispatch(trackBooking({ bookingId: id }));
-    });
-    return () => {
-      if (customerPollRef.current) clearInterval(customerPollRef.current);
-    };
-  }, []);
+    if (!activeBookingId) return; // sirf tab jab restore ho raha ho
+
+    const status = trackData?.booking?.status;
+    if (!status) return;
+
+    if (status === 'pending') {
+      navigation.navigate('FindingRider', {
+        pickup: trackData!.booking.pickupLocation?.address ?? '',
+        dropoff: trackData!.booking.dropoffLocation?.address ?? '',
+        bookingId: trackData!.booking._id,
+      });
+    } else if (
+      status === 'assigned' ||
+      status === 'arrived_at_pickup' ||
+      status === 'in_transit'
+    ) {
+      navigation.reset({
+        index: 0,
+        routes: [
+          {
+            name: 'BookingConfirmed',
+            params: {
+              booking: trackData!.booking,
+              rider: trackData!.rider,
+            },
+          },
+        ],
+      });
+    }
+  }, [trackData]);
 
   useEffect(() => {
     if (!activeBookingId) return;
@@ -178,19 +309,120 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ navigation, route
       dispatch(trackBooking({ bookingId: activeBookingId }));
     }, 5000);
     return () => {
-      if (customerPollRef.current) { clearInterval(customerPollRef.current); customerPollRef.current = null; }
+      if (customerPollRef.current) {
+        clearInterval(customerPollRef.current);
+        customerPollRef.current = null;
+      }
     };
   }, [activeBookingId]);
 
   // Stop tracking when booking reaches a terminal state
   useEffect(() => {
     const status = trackData?.booking?.status;
+
     if (!status) return;
-    if (['completed', 'delivered', 'cancelled'].includes(status)) {
+
+    // COMPLETED -> RateDelivery
+    if (status === 'completed') {
       clearActiveBooking();
       setActiveBookingId(null);
-      if (customerPollRef.current) { clearInterval(customerPollRef.current); customerPollRef.current = null; }
+
+      if (customerPollRef.current) {
+        clearInterval(customerPollRef.current);
+        customerPollRef.current = null;
+      }
+
       dispatch(resetTrackBooking());
+      dispatch(resetBooking());
+      dispatch(resetFareEstimate());
+      dispatch(setCustomerSkipRestore());
+
+      navigation.reset({
+        index: 0,
+        routes: [
+          {
+            name: 'RateDelivery',
+            params: {
+              bookingId: trackData.booking?._id || '',
+              riderName: trackData.rider?.name || '',
+              vehicleNumber: trackData.rider?.vehicleNumber || '',
+              vehicleType: trackData.booking?.vehicleType || '',
+              bookingNumber: trackData.booking?.bookingNumber || '',
+              total: trackData.booking?.fare || 0,
+            },
+          },
+        ],
+      });
+    }
+
+    // CANCELLED
+    else if (status === 'cancelled') {
+      clearActiveBooking();
+      setActiveBookingId(null);
+
+      if (customerPollRef.current) {
+        clearInterval(customerPollRef.current);
+        customerPollRef.current = null;
+      }
+
+      dispatch(resetTrackBooking());
+      dispatch(resetBooking());
+      dispatch(resetFareEstimate());
+      dispatch(setCustomerSkipRestore());
+
+      const b = trackData.booking;
+
+      if (b?.cancelledBy === 'rider') {
+        navigation.reset({
+          index: 0,
+          routes: [
+            {
+              name: 'CustomerBookingCancelled',
+              params: {
+                bookingId: b?._id ?? '',
+                bookingNumber: b?.bookingNumber ?? '',
+                pickup: b?.pickupLocation?.address ?? '',
+                dropoff: b?.dropoffLocation?.address ?? '',
+                vehicleType: b?.vehicleType ?? 'bike',
+                receiverName: b?.receiverName ?? '',
+                receiverPhone: b?.receiverPhone ?? '',
+                pickupLat: b?.pickupLocation?.coordinates?.lat ?? 0,
+                pickupLng: b?.pickupLocation?.coordinates?.lng ?? 0,
+                dropoffLat: b?.dropoffLocation?.coordinates?.lat ?? 0,
+                dropoffLng: b?.dropoffLocation?.coordinates?.lng ?? 0,
+                cancelReason: b?.cancelReason ?? '',
+              },
+            },
+          ],
+        });
+      } else if (b?.cancelledBy === 'system') {
+        navigation.reset({
+          index: 0,
+          routes: [
+            {
+              name: 'NoRiders',
+              params: {
+                pickup: b?.pickupLocation?.address ?? '',
+                dropoff: b?.dropoffLocation?.address ?? '',
+                bookingId: b?._id ?? '',
+                vehicleType: b?.vehicleType,
+                receiverName: b?.receiverName,
+                receiverPhone: b?.receiverPhone,
+                pickupLat: b?.pickupLocation?.coordinates?.lat,
+                pickupLng: b?.pickupLocation?.coordinates?.lng,
+                dropoffLat: b?.dropoffLocation?.coordinates?.lat,
+                dropoffLng: b?.dropoffLocation?.coordinates?.lng,
+              },
+            },
+          ],
+        });
+      } else {
+        // cancelledBy === 'customer' | 'user'
+        navigation.reset({
+          index: 0,
+          routes: [{ name: 'CustomerDashboard' }],
+        });
+      }
     }
   }, [trackData?.booking?.status]);
 
@@ -199,10 +431,17 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ navigation, route
       if (Platform.OS === 'android') {
         const granted = await PermissionsAndroid.request(
           PermissionsAndroid.PERMISSIONS.READ_CONTACTS,
-          { title: 'Contacts Permission', message: 'Allow access to select a receiver from your contacts.', buttonPositive: 'Allow' },
+          {
+            title: 'Contacts Permission',
+            message: 'Allow access to select a receiver from your contacts.',
+            buttonPositive: 'Allow',
+          },
         );
         if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
-          Alert.alert('Permission denied', 'Contacts permission is required to use this feature.');
+          Alert.alert(
+            'Permission denied',
+            'Contacts permission is required to use this feature.',
+          );
           return;
         }
       }
@@ -211,7 +450,9 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ navigation, route
       setContactSearch('');
       const contacts = await Contacts.getAll();
       const withPhone = contacts.filter(c => c.phoneNumbers?.length > 0);
-      withPhone.sort((a, b) => (a.givenName ?? '').localeCompare(b.givenName ?? ''));
+      withPhone.sort((a, b) =>
+        (a.givenName ?? '').localeCompare(b.givenName ?? ''),
+      );
       setAllContacts(withPhone);
     } catch {
       setContactsVisible(false);
@@ -221,7 +462,10 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ navigation, route
   };
 
   const selectContact = (contact: Contact) => {
-    const name = [contact.givenName, contact.familyName].filter(Boolean).join(' ').trim();
+    const name = [contact.givenName, contact.familyName]
+      .filter(Boolean)
+      .join(' ')
+      .trim();
     const rawPhone = contact.phoneNumbers?.[0]?.number ?? '';
     const phone = rawPhone.replace(/\D/g, '').slice(-10);
     if (name) setReceiverName(name);
@@ -229,12 +473,16 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ navigation, route
     setContactsVisible(false);
   };
 
-  const filteredContacts = contactSearch.trim().length === 0
-    ? allContacts
-    : allContacts.filter(c => {
-      const full = [c.givenName, c.familyName].filter(Boolean).join(' ').toLowerCase();
-      return full.includes(contactSearch.toLowerCase());
-    });
+  const filteredContacts =
+    contactSearch.trim().length === 0
+      ? allContacts
+      : allContacts.filter(c => {
+          const full = [c.givenName, c.familyName]
+            .filter(Boolean)
+            .join(' ')
+            .toLowerCase();
+          return full.includes(contactSearch.toLowerCase());
+        });
 
   const currentVehicle = VEHICLES.find(v => v.id === selectedVehicle)!;
   const isValidName = (name: string) => /^[A-Za-z ,]{3,}$/.test(name);
@@ -250,18 +498,36 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ navigation, route
 
   const handleBookNow = () => {
     if (!isBookingReady) return;
-    if (pickupLat == null || pickupLng == null || dropoffLat == null || dropoffLng == null) {
-      Alert.alert('Location missing', 'Please select both pickup and drop-off locations from the location screen.');
+    if (
+      pickupLat == null ||
+      pickupLng == null ||
+      dropoffLat == null ||
+      dropoffLng == null
+    ) {
+      Alert.alert(
+        'Location missing',
+        'Please select both pickup and drop-off locations from the location screen.',
+      );
       return;
     }
-    dispatch(createBooking({
-      pickupLocation: { address: pickup, coordinates: { lat: pickupLat, lng: pickupLng } },
-      dropoffLocation: { address: dropoff, coordinates: { lat: dropoffLat, lng: dropoffLng } },
-      vehicleType: selectedVehicle,
-      receiverName,
-      receiverPhone,
-      ...(parcelDetails.trim() ? { parcelDetails: parcelDetails.trim() } : {}),
-    }));
+    dispatch(
+      createBooking({
+        pickupLocation: {
+          address: pickup,
+          coordinates: { lat: pickupLat, lng: pickupLng },
+        },
+        dropoffLocation: {
+          address: dropoff,
+          coordinates: { lat: dropoffLat, lng: dropoffLng },
+        },
+        vehicleType: selectedVehicle,
+        receiverName,
+        receiverPhone,
+        ...(parcelDetails.trim()
+          ? { parcelDetails: parcelDetails.trim() }
+          : {}),
+      }),
+    );
   };
 
   useEffect(() => {
@@ -277,12 +543,10 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ navigation, route
       dropoff,
       bookingId,
     });
-
   }, [bookingData, bookingLoading]);
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-
       {activeTab === 'Orders' ? (
         <MyOrdersScreen onBack={() => setActiveTab('Home')} />
       ) : activeTab === 'Alerts' ? (
@@ -305,7 +569,10 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ navigation, route
         />
       ) : (
         <>
-          <StatusBar barStyle="light-content" backgroundColor={Colors.secondary} />
+          <StatusBar
+            barStyle="light-content"
+            backgroundColor={Colors.secondary}
+          />
 
           <AppHeader
             name={`${customerName} 👋`}
@@ -313,233 +580,305 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ navigation, route
           />
 
           {/* Scrollable Content */}
-          <ScrollView
-            style={styles.scroll}
-            contentContainerStyle={styles.scrollContent}
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled">
-
-            {/* Pickup / Dropoff */}
-            <View style={styles.locationCard}>
-              <View style={styles.locationRow}>
-                <View style={[styles.dot, { backgroundColor: '#22C55E' }]} />
-                <TouchableOpacity
-                  style={{ flex: 1 }}
-                  onPress={() => navigation.navigate('SetLocation', {
-                    type: 'pickup',
-                    currentPickup: pickup,
-                    currentDropoff: dropoff,
-                    vehicleType: selectedVehicle,
-                    pickupLat: pickupLat ?? undefined,
-                    pickupLng: pickupLng ?? undefined,
-                    dropoffLat: dropoffLat ?? undefined,
-                    dropoffLng: dropoffLng ?? undefined,
-                  })}
-                  activeOpacity={0.7}>
-                  <RNTextInput
-                    style={styles.locationInput}
-                    placeholder="Enter pickup location"
-                    placeholderTextColor="#AAAAAA"
-                    value={pickup}
-                    onChangeText={setPickup}
-                    editable={false}
-                    pointerEvents="none"
-                  />
-                </TouchableOpacity>
-              </View>
-
-              <View style={styles.locationDivider} />
-
-              <View style={styles.locationRow}>
-                <View style={[styles.dot, { backgroundColor: Colors.primary }]} />
-                <TouchableOpacity
-                  style={{ flex: 1 }}
-                  onPress={() => navigation.navigate('SetLocation', {
-                    type: 'dropoff',
-                    currentPickup: pickup,
-                    currentDropoff: dropoff,
-                    vehicleType: selectedVehicle,
-                    pickupLat: pickupLat ?? undefined,
-                    pickupLng: pickupLng ?? undefined,
-                    dropoffLat: dropoffLat ?? undefined,
-                    dropoffLng: dropoffLng ?? undefined,
-                  })}
-                  activeOpacity={0.7}>
-                  <RNTextInput
-                    style={styles.locationInput}
-                    placeholder="Enter drop-off location"
-                    placeholderTextColor="#AAAAAA"
-                    value={dropoff}
-                    onChangeText={setDropoff}
-                    editable={false}
-                    pointerEvents="none"
-                  />
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            {/* Select Vehicle */}
-            <Text style={styles.sectionTitle}>Select Vehicle</Text>
-            <View style={styles.vehicleRow}>
-              {VEHICLES.map(vehicle => (
-                <TouchableOpacity
-                  key={vehicle.id}
-                  style={[
-                    styles.vehicleCard,
-                    selectedVehicle === vehicle.id && styles.vehicleCardActive,
-                  ]}
-                  onPress={() => setSelectedVehicle(vehicle.id)}
-                  activeOpacity={0.8}
-                >
-                  <Text style={styles.vehicleEmoji}>{vehicle.emoji}</Text>
-                  <Text
-                    style={[
-                      styles.vehicleName,
-                      selectedVehicle === vehicle.id && styles.vehicleNameActive,
-                    ]}
-                    numberOfLines={1}
+          <KeyboardAvoidingView
+            style={{ flex: 1 }}
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          >
+            <ScrollView
+              style={styles.scroll}
+              contentContainerStyle={styles.scrollContent}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+            >
+              {/* Pickup / Dropoff */}
+              <View style={styles.locationCard}>
+                <View style={styles.locationRow}>
+                  <View style={[styles.dot, { backgroundColor: '#22C55E' }]} />
+                  <TouchableOpacity
+                    style={{ flex: 1 }}
+                    onPress={() =>
+                      navigation.navigate('SetLocation', {
+                        type: 'pickup',
+                        currentPickup: pickup,
+                        currentDropoff: dropoff,
+                        vehicleType: selectedVehicle,
+                        pickupLat: pickupLat ?? undefined,
+                        pickupLng: pickupLng ?? undefined,
+                        dropoffLat: dropoffLat ?? undefined,
+                        dropoffLng: dropoffLng ?? undefined,
+                      })
+                    }
+                    activeOpacity={0.7}
                   >
-                    {vehicle.name}
-                  </Text>
-
-                  <Text
-                    style={[
-                      styles.vehicleCapacity,
-                      selectedVehicle === vehicle.id && styles.vehicleCapacityActive,
-                    ]}
-                    numberOfLines={2}
-                  >
-                    {vehicle.capacity}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-            {/* Fare Estimate */}
-            <Text style={styles.sectionTitle}>Fare Estimate</Text>
-            {fareLoading ? (
-              <View style={styles.fareCard}>
-                <Text style={styles.fareLabel}>Calculating fare…</Text>
-                <ActivityIndicator size="small" color={Colors.secondary} />
-              </View>
-            ) : fareError ? (
-              <View style={[styles.fareCard, styles.fareCardEmpty]}>
-                <Text style={styles.fareErrorText}>{fareError}</Text>
-              </View>
-            ) : fareData ? (
-              <View style={styles.fareCard}>
-                <View>
-                  <Text style={styles.fareLabel}>Estimated Fare ({currentVehicle.name})</Text>
-                  {fareData.distanceKm != null && (
-                    <Text style={styles.fareDistance}>{fareData.distanceKm.toFixed(1)} km</Text>
-                  )}
-                  {fareData.message ? (
-                    <Text style={styles.fareMessage}>{fareData.message}</Text>
-                  ) : null}
+                    <RNTextInput
+                      style={styles.locationInput}
+                      placeholder="Enter pickup location"
+                      placeholderTextColor="#AAAAAA"
+                      value={pickup}
+                      onChangeText={setPickup}
+                      editable={false}
+                      pointerEvents="none"
+                    />
+                  </TouchableOpacity>
                 </View>
-                <Text style={styles.fareAmount}>
-                  ₹{fareData.fare ?? fareData.total ?? '—'}
-                </Text>
+
+                <View style={styles.locationDivider} />
+
+                <View style={styles.locationRow}>
+                  <View
+                    style={[styles.dot, { backgroundColor: Colors.primary }]}
+                  />
+                  <TouchableOpacity
+                    style={{ flex: 1 }}
+                    onPress={() =>
+                      navigation.navigate('SetLocation', {
+                        type: 'dropoff',
+                        currentPickup: pickup,
+                        currentDropoff: dropoff,
+                        vehicleType: selectedVehicle,
+                        pickupLat: pickupLat ?? undefined,
+                        pickupLng: pickupLng ?? undefined,
+                        dropoffLat: dropoffLat ?? undefined,
+                        dropoffLng: dropoffLng ?? undefined,
+                      })
+                    }
+                    activeOpacity={0.7}
+                  >
+                    <RNTextInput
+                      style={styles.locationInput}
+                      placeholder="Enter drop-off location"
+                      placeholderTextColor="#AAAAAA"
+                      value={dropoff}
+                      onChangeText={setDropoff}
+                      editable={false}
+                      pointerEvents="none"
+                    />
+                  </TouchableOpacity>
+                </View>
               </View>
-            ) : (
-              <View style={[styles.fareCard, styles.fareCardEmpty]}>
-                <Text style={styles.fareEmptyText}>
-                  Select pickup &amp; drop-off location to see fare estimate.
-                </Text>
+
+              {/* Select Vehicle */}
+              <Text style={styles.sectionTitle}>Select Vehicle</Text>
+              <View style={styles.vehicleRow}>
+                {VEHICLES.map(vehicle => (
+                  <TouchableOpacity
+                    key={vehicle.id}
+                    style={[
+                      styles.vehicleCard,
+                      selectedVehicle === vehicle.id &&
+                        styles.vehicleCardActive,
+                    ]}
+                    onPress={() => setSelectedVehicle(vehicle.id)}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.vehicleEmoji}>{vehicle.emoji}</Text>
+                    <Text
+                      style={[
+                        styles.vehicleName,
+                        selectedVehicle === vehicle.id &&
+                          styles.vehicleNameActive,
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {vehicle.name}
+                    </Text>
+
+                    <Text
+                      style={[
+                        styles.vehicleCapacity,
+                        selectedVehicle === vehicle.id &&
+                          styles.vehicleCapacityActive,
+                      ]}
+                      numberOfLines={2}
+                    >
+                      {vehicle.capacity}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
               </View>
-            )}
-            <Text style={styles.fareNote}>
-              Final fare may vary based on distance and traffic.
-            </Text>
-
-            {/* Parcel Details */}
-            <Text style={styles.sectionTitle}>Parcel Details (Optional)</Text>
-            <View style={styles.inputBox}>
-              <RNTextInput
-                style={styles.inputText}
-                placeholder="e.g., Documents, Food, Electronics..."
-                placeholderTextColor="#AAAAAA"
-                value={parcelDetails}
-                onChangeText={setParcelDetails}
-              />
-            </View>
-
-            {/* Receiver Details */}
-            <View style={styles.receiverHeader}>
-              <Text style={[styles.sectionTitle, { marginBottom: 0, color: Colors.secondary }]}>
-                Receiver Details
+              {/* Fare Estimate */}
+              <Text style={styles.sectionTitle}>Fare Estimate</Text>
+              {fareLoading ? (
+                <View style={styles.fareCard}>
+                  <Text style={styles.fareLabel}>Calculating fare…</Text>
+                  <ActivityIndicator size="small" color={Colors.secondary} />
+                </View>
+              ) : fareError ? (
+                <View style={[styles.fareCard, styles.fareCardEmpty]}>
+                  <Text style={styles.fareErrorText}>{fareError}</Text>
+                </View>
+              ) : fareData ? (
+                <View style={styles.fareCard}>
+                  <View>
+                    <Text style={styles.fareLabel}>
+                      Estimated Fare ({currentVehicle.name})
+                    </Text>
+                    {fareData.distanceKm != null && (
+                      <Text style={styles.fareDistance}>
+                        {fareData.distanceKm.toFixed(1)} km
+                      </Text>
+                    )}
+                    {fareData.message ? (
+                      <Text style={styles.fareMessage}>{fareData.message}</Text>
+                    ) : null}
+                  </View>
+                  <Text style={styles.fareAmount}>
+                    ₹{fareData.fare ?? fareData.total ?? '—'}
+                  </Text>
+                </View>
+              ) : (
+                <View style={[styles.fareCard, styles.fareCardEmpty]}>
+                  <Text style={styles.fareEmptyText}>
+                    Select pickup &amp; drop-off location to see fare estimate.
+                  </Text>
+                </View>
+              )}
+              <Text style={styles.fareNote}>
+                Final fare may vary based on distance and traffic.
               </Text>
-              <TouchableOpacity style={styles.contactsBtn} onPress={openContacts} activeOpacity={0.7}>
-                <Ionicons name="person-circle-outline" size={16} color={Colors.secondary} />
-                <Text style={styles.contactsBtnText}>Contacts</Text>
+
+              {/* Parcel Details */}
+              <Text style={styles.sectionTitle}>Parcel Details (Optional)</Text>
+              <View style={styles.inputBox}>
+                <RNTextInput
+                  style={styles.inputText}
+                  placeholder="e.g., Documents, Food, Electronics..."
+                  placeholderTextColor="#AAAAAA"
+                  value={parcelDetails}
+                  onChangeText={setParcelDetails}
+                />
+              </View>
+
+              {/* Receiver Details */}
+              <View style={styles.receiverHeader}>
+                <Text
+                  style={[
+                    styles.sectionTitle,
+                    { marginBottom: 0, color: Colors.secondary },
+                  ]}
+                >
+                  Receiver Details
+                </Text>
+                <TouchableOpacity
+                  style={styles.contactsBtn}
+                  onPress={openContacts}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons
+                    name="person-circle-outline"
+                    size={16}
+                    color={Colors.secondary}
+                  />
+                  <Text style={styles.contactsBtnText}>Contacts</Text>
+                </TouchableOpacity>
+              </View>
+              {/* Receiver Name */}
+              <View style={styles.inputBox}>
+                <Text style={styles.inputIcon}>👤</Text>
+                <RNTextInput
+                  style={styles.inputText}
+                  placeholder="Receiver's full name"
+                  placeholderTextColor="#AAAAAA"
+                  value={receiverName}
+                  onChangeText={setReceiverName}
+                  autoCapitalize="words"
+                />
+                <TouchableOpacity
+                  onPress={openContacts}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Ionicons
+                    name="person-add-outline"
+                    size={18}
+                    color="#AAAAAA"
+                  />
+                </TouchableOpacity>
+              </View>
+              {receiverName.length > 0 && !isValidName(receiverName) && (
+                <Text
+                  style={{ color: 'red', marginTop: -10, marginBottom: 12 }}
+                >
+                  Name must be at least 3 letters
+                </Text>
+              )}
+
+              {/* Receiver Phone */}
+              <View style={styles.inputBox}>
+                <Text style={styles.inputIcon}>📱</Text>
+                <Text style={styles.phonePrefix}>+91</Text>
+                <RNTextInput
+                  style={styles.inputText}
+                  placeholder="Receiver's phone number"
+                  placeholderTextColor="#AAAAAA"
+                  value={receiverPhone}
+                  onChangeText={text => {
+                    const cleaned = text.replace(/[^0-9]/g, '');
+                    setReceiverPhone(cleaned);
+                  }}
+                  keyboardType="phone-pad"
+                  maxLength={10}
+                />
+              </View>
+              {receiverPhone.length > 0 && !isValidPhone(receiverPhone) && (
+                <Text
+                  style={{ color: 'red', marginTop: -10, marginBottom: 12 }}
+                >
+                  Enter a valid 10-digit phone number
+                </Text>
+              )}
+
+              {/* Book Now Button */}
+              <TouchableOpacity
+                style={[
+                  styles.bookBtn,
+                  (!isBookingReady || bookingLoading) && styles.bookBtnDisabled,
+                ]}
+                activeOpacity={0.85}
+                disabled={!isBookingReady || bookingLoading}
+                onPress={handleBookNow}
+              >
+                {bookingLoading ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <View
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      gap: 6,
+                    }}
+                  >
+                    <Text style={styles.bookBtnText}>Book Now</Text>
+                    <Image
+                      source={require('../../assets/icons/arrow.png')}
+                      style={[
+                        styles.backArrow,
+                        { transform: [{ rotate: '180deg' }] },
+                      ]}
+                    />
+                  </View>
+                )}
               </TouchableOpacity>
-            </View>
-            {/* Receiver Name */}
-            <View style={styles.inputBox}>
-              <Text style={styles.inputIcon}>👤</Text>
-              <RNTextInput
-                style={styles.inputText}
-                placeholder="Receiver's full name"
-                placeholderTextColor="#AAAAAA"
-                value={receiverName}
-                onChangeText={setReceiverName}
-                autoCapitalize="words"
-              />
-              <TouchableOpacity onPress={openContacts} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                <Ionicons name="person-add-outline" size={18} color="#AAAAAA" />
-              </TouchableOpacity>
-            </View>
-            {receiverName.length > 0 && !isValidName(receiverName) && (
-              <Text style={{ color: 'red', marginTop: -10, marginBottom: 12 }}>
-                Name must be at least 3 letters
-              </Text>
-            )}
+              {bookingError ? (
+                <Text style={styles.bookingError}>{bookingError}</Text>
+              ) : null}
 
-            {/* Receiver Phone */}
-            <View style={styles.inputBox}>
-              <Text style={styles.inputIcon}>📱</Text>
-              <Text style={styles.phonePrefix}>+91</Text>
-              <RNTextInput
-                style={styles.inputText}
-                placeholder="Receiver's phone number"
-                placeholderTextColor="#AAAAAA"
-                value={receiverPhone}
-                onChangeText={(text) => {
-                  const cleaned = text.replace(/[^0-9]/g, '');
-                  setReceiverPhone(cleaned);
-                }}
-                keyboardType="phone-pad"
-                maxLength={10}
-              />
-            </View>
-            {receiverPhone.length > 0 && !isValidPhone(receiverPhone) && (
-              <Text style={{ color: 'red', marginTop: -10, marginBottom: 12 }}>
-                Enter a valid 10-digit phone number
-              </Text>
-            )}
-
-            {/* Book Now Button */}
-            <TouchableOpacity
-              style={[styles.bookBtn, (!isBookingReady || bookingLoading) && styles.bookBtnDisabled]}
-              activeOpacity={0.85}
-              disabled={!isBookingReady || bookingLoading}
-              onPress={handleBookNow}>
-              {bookingLoading
-                ? <ActivityIndicator color="#fff" />
-                : <Text style={styles.bookBtnText}> Book Now →</Text>}
-            </TouchableOpacity>
-            {bookingError ? (
-              <Text style={styles.bookingError}>{bookingError}</Text>
-            ) : null}
-
-            <View style={{ height: 16 }} />
-          </ScrollView>
+              <View style={{ height: 16 }} />
+            </ScrollView>
+          </KeyboardAvoidingView>
         </>
       )}
 
       {/* Ongoing Delivery Banner — visible on all tabs */}
       {(() => {
         const status = trackData?.booking?.status;
-        if (!trackData || !status || !['pending', 'assigned', 'arrived_at_pickup', 'in_transit'].includes(status)) return null;
+        if (
+          !trackData ||
+          !status ||
+          !['pending', 'assigned', 'arrived_at_pickup', 'in_transit'].includes(
+            status,
+          )
+        )
+          return null;
         return (
           <OngoingDeliveryBanner
             pickup={trackData.booking.pickupLocation?.address ?? ''}
@@ -554,9 +893,17 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ navigation, route
                   bookingId: trackData.booking._id,
                 });
               } else {
-                navigation.navigate('BookingConfirmed', {
-                  booking: trackData.booking,
-                  rider: trackData.rider,
+                navigation.reset({
+                  index: 0,
+                  routes: [
+                    {
+                      name: 'BookingConfirmed',
+                      params: {
+                        booking: trackData.booking,
+                        rider: trackData.rider,
+                      },
+                    },
+                  ],
                 });
               }
             }}
@@ -571,50 +918,59 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ navigation, route
             key={tab.name}
             style={styles.tabItem}
             onPress={() => setActiveTab(tab.name)}
-            activeOpacity={0.7}>
-            {tab.name === 'Home'
-              ? <Image
+            activeOpacity={0.7}
+          >
+            {tab.name === 'Home' ? (
+              <Image
                 source={require('../../assets/icons/riderHome.png')}
                 style={{
                   width: 22,
                   height: 22,
-                  tintColor: activeTab === 'Home' ? Colors.primary : Colors.textGray,
-                  resizeMode: 'contain'
+                  tintColor:
+                    activeTab === 'Home' ? Colors.primary : Colors.textGray,
+                  resizeMode: 'contain',
                 }}
               />
-              : tab.name === 'Orders'
-                ? <Image
-                  source={require('../../assets/icons/orders.png')}
-                  style={{
-                    width: 22,
-                    height: 22,
-                    tintColor: activeTab === 'Orders' ? Colors.primary : Colors.textGray,
-                    resizeMode: 'contain'
-                  }}
-                />
-                : tab.name === 'Alerts'
-                  ? <Image
-                    source={require('../../assets/icons/notifications.png')}
-                    style={{
-                      width: 22,
-                      height: 22,
-                      tintColor: activeTab === 'Alerts' ? Colors.primary : Colors.textGray,
-                      resizeMode: 'contain'
-                    }}
-                  />
-                  : <Image
-                    source={require('../../assets/icons/person.png')}
-                    style={{
-                      width: 22,
-                      height: 22,
-                      tintColor: activeTab === 'Profile' ? Colors.primary : Colors.textGray,
-                      resizeMode: 'contain'
-                    }}
-                  />}
-            <Text style={[
-              styles.tabLabel,
-              activeTab === tab.name && styles.tabLabelActive,
-            ]}>
+            ) : tab.name === 'Orders' ? (
+              <Image
+                source={require('../../assets/icons/orders.png')}
+                style={{
+                  width: 22,
+                  height: 22,
+                  tintColor:
+                    activeTab === 'Orders' ? Colors.primary : Colors.textGray,
+                  resizeMode: 'contain',
+                }}
+              />
+            ) : tab.name === 'Alerts' ? (
+              <Image
+                source={require('../../assets/icons/notifications.png')}
+                style={{
+                  width: 22,
+                  height: 22,
+                  tintColor:
+                    activeTab === 'Alerts' ? Colors.primary : Colors.textGray,
+                  resizeMode: 'contain',
+                }}
+              />
+            ) : (
+              <Image
+                source={require('../../assets/icons/person.png')}
+                style={{
+                  width: 22,
+                  height: 22,
+                  tintColor:
+                    activeTab === 'Profile' ? Colors.primary : Colors.textGray,
+                  resizeMode: 'contain',
+                }}
+              />
+            )}
+            <Text
+              style={[
+                styles.tabLabel,
+                activeTab === tab.name && styles.tabLabelActive,
+              ]}
+            >
               {tab.name}
             </Text>
             {activeTab === tab.name && <View style={styles.tabActiveBar} />}
@@ -626,12 +982,16 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ navigation, route
       <Modal
         visible={contactsVisible}
         animationType="slide"
-        onRequestClose={() => setContactsVisible(false)}>
+        onRequestClose={() => setContactsVisible(false)}
+      >
         <View style={styles.contactsModal}>
           {/* Modal Header */}
           <View style={styles.contactsHeader}>
             <Text style={styles.contactsTitle}>Select Contact</Text>
-            <TouchableOpacity onPress={() => setContactsVisible(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <TouchableOpacity
+              onPress={() => setContactsVisible(false)}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
               <Ionicons name="close" size={24} color={Colors.textDark} />
             </TouchableOpacity>
           </View>
@@ -670,12 +1030,20 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ navigation, route
               keyExtractor={item => item.recordID}
               keyboardShouldPersistTaps="handled"
               renderItem={({ item }) => {
-                const name = [item.givenName, item.familyName].filter(Boolean).join(' ');
+                const name = [item.givenName, item.familyName]
+                  .filter(Boolean)
+                  .join(' ');
                 const phone = item.phoneNumbers?.[0]?.number ?? '';
                 return (
-                  <TouchableOpacity style={styles.contactRow} onPress={() => selectContact(item)} activeOpacity={0.7}>
+                  <TouchableOpacity
+                    style={styles.contactRow}
+                    onPress={() => selectContact(item)}
+                    activeOpacity={0.7}
+                  >
                     <View style={styles.contactAvatar}>
-                      <Text style={styles.contactAvatarText}>{(item.givenName?.[0] ?? '?').toUpperCase()}</Text>
+                      <Text style={styles.contactAvatarText}>
+                        {(item.givenName?.[0] ?? '?').toUpperCase()}
+                      </Text>
                     </View>
                     <View style={styles.contactInfo}>
                       <Text style={styles.contactName}>{name}</Text>
@@ -684,7 +1052,9 @@ const CustomerDashboard: React.FC<CustomerDashboardProps> = ({ navigation, route
                   </TouchableOpacity>
                 );
               }}
-              ItemSeparatorComponent={() => <View style={styles.contactDivider} />}
+              ItemSeparatorComponent={() => (
+                <View style={styles.contactDivider} />
+              )}
             />
           )}
         </View>
@@ -707,6 +1077,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 16,
     paddingBottom: 8,
+  },
+
+  backArrow: {
+    width: 16,
+    height: 16,
+    resizeMode: 'contain',
+    tintColor: '#fff',
   },
 
   // Location Card
@@ -1002,6 +1379,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
+    fontSize:18,
   },
   bookBtnDisabled: {
     opacity: 0.6,
@@ -1060,7 +1438,6 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.secondary,
     borderRadius: 2,
   },
-
 });
 
 export default CustomerDashboard;

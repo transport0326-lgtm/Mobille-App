@@ -32,6 +32,7 @@ const ReviewBookingScreen: React.FC<ReviewBookingScreenProps> = ({ navigation, r
     (state: RootState) => state.booking.createBooking,
   );
   const trackData = useSelector((state: RootState) => state.booking.trackBooking.data);
+  const trackFareBreakdown = trackData?.fareBreakdown;
 
   const {
     pickup, dropoff, vehicleType,
@@ -40,11 +41,11 @@ const ReviewBookingScreen: React.FC<ReviewBookingScreenProps> = ({ navigation, r
   } = route.params;
 
   const fd = fareData as any;
-  const distanceKm: number = fd?.distanceKm ?? 0;
-  const baseFare: number = fd?.baseFare ?? 0;
-  const ratePerKm: number = fd?.ratePerKm ?? 0;
-  const platformFee: number = fd?.platformFee ?? 0;
-  const total: number = fd?.total ?? fd?.fare ?? 0;
+  const distanceKm: number = fd?.distanceKm ?? trackFareBreakdown?.distanceKm ?? 0;
+  const baseFare: number = fd?.baseFare ?? trackFareBreakdown?.baseFare ?? 0;
+  const ratePerKm: number = fd?.ratePerKm ?? fd?.perKmRate ?? trackFareBreakdown?.perKmRate ?? 0;
+  const platformFee: number = fd?.platformFee ?? trackFareBreakdown?.platformFee ?? 0;
+  const total: number = fd?.total ?? fd?.fare ?? trackFareBreakdown?.totalAmount ?? 0;
   const etaMin = distanceKm > 0 ? Math.round(distanceKm * 3.75) : 0;
   const vehicleName =
     vehicleType.charAt(0).toUpperCase() + vehicleType.slice(1).replace(/([A-Z])/g, ' $1');
@@ -97,7 +98,9 @@ const ReviewBookingScreen: React.FC<ReviewBookingScreenProps> = ({ navigation, r
 
       {/* Header */}
       <View style={styles.header}>
-              <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+              <TouchableOpacity
+          onPress={() => navigation.canGoBack() && navigation.goBack()}
+          style={styles.backBtn}>
                 <Image
                   source={require('../../assets/icons/arrow.png')}
                   style={styles.backArrow}
@@ -170,7 +173,7 @@ const ReviewBookingScreen: React.FC<ReviewBookingScreenProps> = ({ navigation, r
             </View>
           )}
 
-          {platformFee > 0 && (
+          {platformFee >= 0 && (
             <View style={styles.fareRow}>
               <Text style={styles.fareKey}>Platform Fee</Text>
               <Text style={styles.fareVal}>₹ {platformFee}</Text>
@@ -218,7 +221,7 @@ const ReviewBookingScreen: React.FC<ReviewBookingScreenProps> = ({ navigation, r
 };
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: Colors.white },
+  safeArea: { flex: 1, backgroundColor: '#F8F9FA' },
 
     header: {
     flexDirection: 'row',
@@ -249,25 +252,20 @@ const styles = StyleSheet.create({
     marginLeft: 12,
   },
   scroll: { flex: 1 },
-  scrollContent: { paddingHorizontal: 16, paddingTop: 20, paddingBottom: 16 },
+  scrollContent: { paddingTop: 8, paddingBottom: 24 },
 
   card: {
     backgroundColor: Colors.white,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.07,
-    shadowRadius: 4,
+    paddingHorizontal: 20,
+    paddingVertical: 18,
+    marginBottom: 8,
   },
 
   sectionTitle: {
-    fontSize: 16,
-    fontWeight: '800',
+    fontSize: 15,
+    fontWeight: '700',
     color: Colors.textDark,
-    marginBottom: 16,
+    marginBottom: 14,
   },
 
   routeRow: {
@@ -297,14 +295,14 @@ const styles = StyleSheet.create({
   routeAddress: { fontSize: 14, fontWeight: '700', color: Colors.textDark },
 
   distancePill: {
-    marginTop: 12,
-    backgroundColor: '#EEF2FF',
-    borderRadius: 6,
+    marginTop: 10,
+    backgroundColor: '#F2F7FF',
+    borderRadius: 10,
     paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingVertical: 8,
     alignSelf: 'flex-start',
   },
-  distancePillText: { fontSize: 13, color: '#4B5563', fontWeight: '500' },
+  distancePillText: { fontSize: 12, color: Colors.secondary, fontWeight: '500' },
 
   fareRow: {
     flexDirection: 'row',
@@ -312,18 +310,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 12,
   },
-  fareKey: { fontSize: 14, color: Colors.textGray, flex: 1, marginRight: 8 },
-  fareVal: { fontSize: 14, fontWeight: '600', color: Colors.textDark },
+  fareKey: { fontSize: 13, color: Colors.textGray, flex: 1, marginRight: 8 },
+  fareVal: { fontSize: 13, fontWeight: '600', color: Colors.textDark },
 
-  divider: { height: 1, backgroundColor: '#EEEEEE', marginVertical: 12 },
+  divider: { height: 1, backgroundColor: '#F0F0F0', marginVertical: 10 },
 
   totalRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  totalLabel: { fontSize: 17, fontWeight: '800', color: Colors.textDark },
-  totalValue: { fontSize: 24, fontWeight: '800', color: Colors.secondary },
+  totalLabel: { fontSize: 16, fontWeight: '700', color: Colors.textDark },
+  totalValue: { fontSize: 20, fontWeight: '700', color: Colors.secondary },
 
   errorText: { color: 'red', fontSize: 13, textAlign: 'center', marginBottom: 12 },
 

@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useState } from 'react';
+﻿import React, { useEffect, useState, useRef } from 'react';
 import {
   View,
   StyleSheet,
@@ -19,6 +19,7 @@ import { useDispatch } from 'react-redux';
 import type { AppDispatch } from '../../redux/store';
 import { setSkipRestore } from '../../redux/slices/riderActiveSlice';
 import CancelOrderSheet from '../../components/CancelOrderSheet';
+import { fetchMessages } from '../../redux/sagas/chat/chatAction';
 
 type DeliveringParcelScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'DeliveringParcel'>;
@@ -40,6 +41,11 @@ const DeliveringParcelScreen: React.FC<DeliveringParcelScreenProps> = ({
 }) => {
   const dispatch = useDispatch<AppDispatch>();
   const [showCancelSheet, setShowCancelSheet] = useState(false);
+  const [seenCustomerMsgCount, setSeenCustomerMsgCount] = useState(0);
+  const chatMessages = useSelector((state: RootState) => state.chat.messages);
+  const incomingMsgCount = chatMessages.filter(m => m.senderRole !== 'rider').length;
+  const hasUnread = incomingMsgCount > seenCustomerMsgCount;
+  const markSeenRef = useRef(() => {});
   const statusBooking = useSelector(
     (state: RootState) => state.updateBookingStatus.booking,
   );
@@ -88,6 +94,20 @@ const DeliveringParcelScreen: React.FC<DeliveringParcelScreenProps> = ({
       : '??';
   };
 
+  markSeenRef.current = () => setSeenCustomerMsgCount(incomingMsgCount);
+
+  useEffect(() => {
+    if (!booking?._id) return;
+    dispatch(fetchMessages({ bookingId: booking._id }));
+    const id = setInterval(() => dispatch(fetchMessages({ bookingId: booking._id! })), 5000);
+    return () => clearInterval(id);
+  }, [booking?._id]);
+
+  useEffect(() => {
+    const unsub = navigation.addListener('focus', () => markSeenRef.current());
+    return unsub;
+  }, [navigation]);
+
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
       dispatch(setSkipRestore());
@@ -115,6 +135,7 @@ const DeliveringParcelScreen: React.FC<DeliveringParcelScreenProps> = ({
   };
 
   const handleChat = () => {
+    markSeenRef.current();
     navigation.navigate('RiderChat', {
       customerName: senderName,
       bookingNumber: `BK-${booking?.bookingNumber ?? ''}`,
@@ -204,9 +225,12 @@ const DeliveringParcelScreen: React.FC<DeliveringParcelScreenProps> = ({
         </View>
 
         <View style={styles.actionBtns}>
-          <TouchableOpacity style={styles.chatBtn} onPress={handleChat}>
-            <Text style={styles.chatBtnText}>💬 Chat</Text>
-          </TouchableOpacity>
+          <View style={{ position: 'relative' }}>
+            <TouchableOpacity style={styles.chatBtn} onPress={handleChat}>
+              <Text style={styles.chatBtnText}>💬 Chat</Text>
+            </TouchableOpacity>
+            {hasUnread && <View style={styles.unreadDot} />}
+          </View>
 
           <TouchableOpacity
             style={styles.callBtn}
@@ -291,22 +315,40 @@ const DeliveringParcelScreen: React.FC<DeliveringParcelScreenProps> = ({
 
         <TouchableOpacity
           style={styles.completeBtn}
-          onPress={() => navigation.navigate('VerifyDeliveryOTP')}
+          onPress={() => {
+            dispatch(setSkipRestore());
+            navigation.navigate('VerifyDeliveryOTP');
+          }}
         >
           <Text style={styles.completeBtnText}>Complete Delivery</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity
+        {/* <TouchableOpacity
           style={styles.cancelBtn}
           activeOpacity={0.85}
           onPress={() => setShowCancelSheet(true)}>
           <Text style={styles.cancelBtnText}>Cancel Order</Text>
-        </TouchableOpacity>
+        </TouchableOpacity> */}
       </View>
 
       <CancelOrderSheet
         visible={showCancelSheet}
         onClose={() => setShowCancelSheet(false)}
+        bookingId={booking?._id ?? ''}
+        onConfirm={(cancelledBy, cancelled) => {
+          dispatch(setSkipRestore());
+          if (cancelledBy === 'customer' || cancelledBy === 'user') {
+            navigation.reset({
+              index: 0,
+              routes: [{ name: 'RiderBookingCancelled', params: { cancelled } }],
+            });
+          } else {
+            navigation.reset({
+              index: 0,
+              routes: [{ name: 'RiderDashboard' }],
+            });
+          }
+        }}
       />
     </SafeAreaView>
   );
@@ -529,6 +571,18 @@ const styles = StyleSheet.create({
   callBtnText: {
     color: '#fff',
     fontSize: 12,
+  },
+
+  unreadDot: {
+    position: 'absolute',
+    top: -3,
+    right: -3,
+    width: 11,
+    height: 11,
+    borderRadius: 6,
+    backgroundColor: '#EF4444',
+    borderWidth: 2,
+    borderColor: Colors.white,
   },
 });
 

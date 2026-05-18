@@ -1,10 +1,11 @@
-﻿import React from 'react';
+import React, { useEffect } from 'react';
 import {
   View,
   StyleSheet,
   StatusBar,
   TouchableOpacity,
   Image,
+  ActivityIndicator,
 } from 'react-native';
 import { Text } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -12,6 +13,11 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
 import { RootStackParamList } from '../../navigation/AppNavigator';
 import { Colors } from '../../theme/theme';
+import { useDispatch, useSelector } from 'react-redux';
+import type { RootState, AppDispatch } from '../../redux/store';
+import { resetCreateBooking } from '../../redux/slices/bookingSlice';
+import { createBooking } from '../../redux/sagas/booking/createBookingAction';
+import { clearActiveBooking } from '../../utils/tokenStorage';
 
 type NoRidersScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'NoRiders'>;
@@ -19,7 +25,59 @@ type NoRidersScreenProps = {
 };
 
 const NoRidersScreen: React.FC<NoRidersScreenProps> = ({ navigation, route }) => {
-  const { pickup, dropoff, bookingId } = route.params;
+  const {
+    pickup,
+    dropoff,
+    bookingId,
+    vehicleType,
+    receiverName,
+    receiverPhone,
+    pickupLat,
+    pickupLng,
+    dropoffLat,
+    dropoffLng,
+  } = route.params;
+
+  const dispatch = useDispatch<AppDispatch>();
+  const { loading, data: bookingData } = useSelector(
+    (state: RootState) => state.booking.createBooking,
+  );
+
+  useEffect(() => {
+    if (loading || !bookingData) return;
+    const bId = bookingData?.booking?._id ?? bookingData?._id ?? '';
+    dispatch(resetCreateBooking());
+    navigation.reset({
+      index: 0,
+      routes: [{ name: 'FindingRider', params: { pickup, dropoff, bookingId: bId } }],
+    });
+  }, [bookingData, loading]);
+
+  const canRebook =
+    vehicleType != null &&
+    receiverName != null &&
+    receiverPhone != null &&
+    pickupLat != null &&
+    pickupLng != null &&
+    dropoffLat != null &&
+    dropoffLng != null;
+
+  const handleTryAgain = () => {
+    if (!canRebook) {
+      navigation.reset({ index: 0, routes: [{ name: 'CustomerDashboard' }] });
+      return;
+    }
+    clearActiveBooking();
+    dispatch(
+      createBooking({
+        pickupLocation: { address: pickup, coordinates: { lat: pickupLat!, lng: pickupLng! } },
+        dropoffLocation: { address: dropoff, coordinates: { lat: dropoffLat!, lng: dropoffLng! } },
+        vehicleType: vehicleType!,
+        receiverName: receiverName!,
+        receiverPhone: receiverPhone!,
+      }),
+    );
+  };
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
@@ -27,7 +85,7 @@ const NoRidersScreen: React.FC<NoRidersScreenProps> = ({ navigation, route }) =>
 
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+        <TouchableOpacity onPress={() => navigation.reset({ index: 0, routes: [{ name: 'CustomerDashboard' }] })} style={styles.backBtn}>
           <Image
             source={require('../../assets/icons/arrow.png')}
             style={styles.backArrow}
@@ -62,7 +120,7 @@ const NoRidersScreen: React.FC<NoRidersScreenProps> = ({ navigation, route }) =>
               <View style={styles.clockHandHour} />
             </View>
             <View>
-              <Text style={styles.waitLabel}>Estimated availab</Text>
+              <Text style={styles.waitLabel}>Estimated availability</Text>
               <Text style={styles.waitTime}>5–10 minutes</Text>
             </View>
           </View>
@@ -72,10 +130,13 @@ const NoRidersScreen: React.FC<NoRidersScreenProps> = ({ navigation, route }) =>
       {/* Footer */}
       <View style={styles.footer}>
         <TouchableOpacity
-          style={styles.tryAgainBtn}
+          style={[styles.tryAgainBtn, loading && styles.tryAgainBtnDisabled]}
           activeOpacity={0.85}
-          onPress={() => navigation.replace('FindingRider', { pickup, dropoff, bookingId })}>
-          <Text style={styles.tryAgainText}>Try Again</Text>
+          onPress={handleTryAgain}
+          disabled={loading}>
+          {loading
+            ? <ActivityIndicator color={Colors.white} size="small" />
+            : <Text style={styles.tryAgainText}>Try Again</Text>}
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -119,7 +180,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     marginLeft: 12,
   },
-
 
   body: {
     flex: 1,
@@ -171,7 +231,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  // Minute hand: tall, anchored at bottom-center, points to 12
   clockHandMinute: {
     position: 'absolute',
     width: 2,
@@ -182,7 +241,6 @@ const styles = StyleSheet.create({
     left: '50%',
     marginLeft: -1,
   },
-  // Hour hand: short, extends rightward from center, points to 3
   clockHandHour: {
     position: 'absolute',
     width: 6,
@@ -215,9 +273,11 @@ const styles = StyleSheet.create({
     width: '100%',
     backgroundColor: Colors.primary,
     borderRadius: 10,
-    paddingVertical: 15,
+    height: 52,
     alignItems: 'center',
+    justifyContent: 'center',
   },
+  tryAgainBtnDisabled: { opacity: 0.6 },
   tryAgainText: {
     color: Colors.white,
     fontSize: 16,

@@ -10,41 +10,47 @@ import { Text } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
-import { useDispatch, useSelector } from 'react-redux';
+import { useDispatch } from 'react-redux';
 import { RootStackParamList } from '../../navigation/AppNavigator';
 import { Colors } from '../../theme/theme';
-import { resetBooking } from '../../redux/slices/bookingSlice';
+import { resetBooking, setCustomerSkipRestore } from '../../redux/slices/bookingSlice';
 import { resetCancelBooking } from '../../redux/slices/cancelBookingSlice';
-import { RootState } from '../../redux/store';
 
 type BookingOTPScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'BookingOTP'>;
   route: RouteProp<RootStackParamList, 'BookingOTP'>;
 };
 
-const BookingOTPScreen: React.FC<BookingOTPScreenProps> = ({ navigation, route }) => {
+const BookingOTPScreen: React.FC<BookingOTPScreenProps> = ({
+  navigation,
+  route,
+}) => {
   const dispatch = useDispatch();
   const {
-    otp, bookingId, pickup, dropoff, vehicleType,
-    distanceKm, baseFare, ratePerKm, platformFee, total,
-    riderName, vehicleNumber, bookingNumber,
+    otp,
+    pickup,
+    dropoff,
+    vehicleType,
+    distanceKm,
+    baseFare,
+    ratePerKm,
+    platformFee,
+    total,
   } = route.params;
-  const trackData = useSelector((state: RootState) => state.booking.trackBooking.data);
 
   const etaMin = distanceKm > 0 ? Math.round(distanceKm * 3.75) : 0;
   const vehicleName =
-    vehicleType.charAt(0).toUpperCase() + vehicleType.slice(1).replace(/([A-Z])/g, ' $1');
+    vehicleType.charAt(0).toUpperCase() +
+    vehicleType.slice(1).replace(/([A-Z])/g, ' $1');
   const otpDigits = otp ? otp.split('') : ['—', '—', '—', '—'];
 
   const handlePaymentSuccessful = () => {
     dispatch(resetBooking());
     dispatch(resetCancelBooking());
+    dispatch(setCustomerSkipRestore());
     navigation.reset({
       index: 0,
-      routes: [{
-        name: 'RateDelivery',
-        params: { bookingId, riderName:trackData?.rider.name || '', vehicleNumber:trackData?.rider.vehicleNumber, vehicleType, bookingNumber, total },
-      }],
+      routes: [{ name: 'CustomerDashboard' }],
     });
   };
 
@@ -54,15 +60,15 @@ const BookingOTPScreen: React.FC<BookingOTPScreenProps> = ({ navigation, route }
 
       <View style={styles.header}>
         <View style={{ width: 40 }} />
-        <Text style={styles.headerTitle}>Review Booking</Text>
+        <Text style={styles.headerTitle}>Booking Summary</Text>
         <View style={{ width: 40 }} />
       </View>
 
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}>
-
+        showsVerticalScrollIndicator={false}
+      >
         {/* Route Card */}
         <View style={styles.card}>
           <Text style={styles.routeTitle}>Route</Text>
@@ -71,7 +77,9 @@ const BookingOTPScreen: React.FC<BookingOTPScreenProps> = ({ navigation, route }
             <View style={[styles.routeDot, { backgroundColor: '#22C55E' }]} />
             <View style={styles.routeTextCol}>
               <Text style={styles.routeAddressLabel}>Pickup</Text>
-              <Text style={styles.routeAddress} numberOfLines={2}>{pickup}</Text>
+              <Text style={styles.routeAddress} numberOfLines={2}>
+                {pickup}
+              </Text>
             </View>
           </View>
 
@@ -80,14 +88,18 @@ const BookingOTPScreen: React.FC<BookingOTPScreenProps> = ({ navigation, route }
           </View>
 
           <View style={styles.routeRow}>
-            <View style={[styles.routeDot, { backgroundColor: Colors.primary }]} />
+            <View
+              style={[styles.routeDot, { backgroundColor: Colors.primary }]}
+            />
             <View style={styles.routeTextCol}>
               <Text style={styles.routeAddressLabel}>Dropoff</Text>
-              <Text style={styles.routeAddress} numberOfLines={2}>{dropoff}</Text>
+              <Text style={styles.routeAddress} numberOfLines={2}>
+                {dropoff}
+              </Text>
             </View>
           </View>
 
-          {distanceKm > 0 && (
+          {distanceKm >= 0 && (
             <View style={styles.routeMeta}>
               <Text style={styles.routeMetaText}>
                 {distanceKm.toFixed(1)} km · ~{etaMin} min
@@ -106,7 +118,9 @@ const BookingOTPScreen: React.FC<BookingOTPScreenProps> = ({ navigation, route }
               </View>
             ))}
           </View>
-          <Text style={styles.otpNote}>Share this OTP with rider at delivery</Text>
+          <Text style={styles.otpNote}>
+            Share this OTP with rider at delivery
+          </Text>
         </View>
 
         {/* Fare Breakdown */}
@@ -130,11 +144,13 @@ const BookingOTPScreen: React.FC<BookingOTPScreenProps> = ({ navigation, route }
               <Text style={styles.fareKey}>
                 Distance ({distanceKm.toFixed(1)} km × ₹{ratePerKm})
               </Text>
-              <Text style={styles.fareVal}>₹{(distanceKm * ratePerKm).toFixed(2)}</Text>
+              <Text style={styles.fareVal}>
+                ₹{(distanceKm * ratePerKm).toFixed(2)}
+              </Text>
             </View>
           )}
 
-          {platformFee > 0 && (
+          {platformFee >= 0 && (
             <View style={styles.fareRow}>
               <Text style={styles.fareKey}>Platform Fee</Text>
               <Text style={styles.fareVal}>₹{platformFee}</Text>
@@ -150,11 +166,17 @@ const BookingOTPScreen: React.FC<BookingOTPScreenProps> = ({ navigation, route }
 
           <View style={styles.fareTotalRow}>
             <Text style={styles.fareTotalLabel}>Total</Text>
-            <Text style={styles.fareTotalValue}>₹{Number(total).toFixed(2)}</Text>
+            <Text style={styles.fareTotalValue}>
+              ₹{Number(total).toFixed(2)}
+            </Text>
           </View>
         </View>
 
-        <TouchableOpacity style={styles.successBtn} onPress={handlePaymentSuccessful} activeOpacity={0.85}>
+        <TouchableOpacity
+          style={styles.successBtn}
+          onPress={handlePaymentSuccessful}
+          activeOpacity={0.85}
+        >
           <Text style={styles.successBtnText}>Payment Successful</Text>
         </TouchableOpacity>
 
@@ -165,7 +187,7 @@ const BookingOTPScreen: React.FC<BookingOTPScreenProps> = ({ navigation, route }
 };
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: '#F5F5F0' },
+  safeArea: { flex: 1, backgroundColor: '#F8F9FA' },
 
   header: {
     flexDirection: 'row',
@@ -229,13 +251,13 @@ const styles = StyleSheet.create({
   },
   routeMeta: {
     marginTop: 12,
-    backgroundColor: '#F0F0F0',
+    backgroundColor: '#F2F7FF',
     borderRadius: 20,
     alignSelf: 'flex-start',
     paddingHorizontal: 12,
     paddingVertical: 4,
   },
-  routeMetaText: { fontSize: 12, color: Colors.textGray, fontWeight: '500' },
+  routeMetaText: { fontSize: 12, color: Colors.secondary, fontWeight: '500' },
 
   otpCard: {
     backgroundColor: '#FFF3EE',
@@ -297,7 +319,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   fareTotalLabel: { fontSize: 16, fontWeight: '800', color: Colors.textDark },
-  fareTotalValue: { fontSize: 22, fontWeight: '800', color: Colors.textDark },
+  fareTotalValue: { fontSize: 20, fontWeight: '700', color: Colors.secondary },
 
   successBtn: {
     backgroundColor: '#22C55E',

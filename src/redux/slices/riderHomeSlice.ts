@@ -11,6 +11,9 @@ export interface RiderHomeData {
   success: boolean;
   name: string;
   isOnline: boolean;
+  isApproved: boolean;
+  approvalStatus: string;
+  rejectionReason: string | null;
   recentDeliveries: any[];
   todaySummary: TodaySummary;
 }

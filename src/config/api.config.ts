@@ -45,6 +45,8 @@ export const API_ENDPOINTS = {
   RIDER_EARNINGS: 'bookings/rider/earnings',
   RIDER_DOCUMENTS: 'riders/documents',
   SUPPORT_MESSAGES: 'support/messages',
+  CHANGE_PHONE_SEND_OTP:   'auth/change-phone/send-otp',
+  CHANGE_PHONE_VERIFY_OTP: 'auth/change-phone/verify-otp',
 } as const;
 
 export { BOOKING_BASE_URL, USER_BASE_URL, RIDER_BASE_URL, BASE_URL2, BASE_URL, SUPPORT_BASE_URL };

@@ -16,6 +16,7 @@ import { Colors } from '../../theme/theme';
 import { RootStackParamList } from '../../navigation/AppNavigator';
 import { useDispatch } from 'react-redux';
 import { verifyBookingOtp } from '../../redux/sagas/rider/verifyBookingOtpAction';
+import { resetVerifyOtpState } from '../../redux/slices/verifyBookingOtpSlice';
 
 const { width } = Dimensions.get('window');
 const OTP_LENGTH = 4;
@@ -64,8 +65,9 @@ const VerifyDeliveryOTPScreen: React.FC<Props> = ({ navigation }) => {
   const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
   const inputRefs = useRef<(RNTextInput | null)[]>([]);
 
-  // ✅ Redux se booking data lo
-  const booking = useSelector((state: any) => state.updateBookingStatus.booking);
+  const statusBooking = useSelector((state: any) => state.updateBookingStatus.booking);
+  const activeData = useSelector((state: any) => state.riderActive.data);
+  const booking = statusBooking ?? activeData?.booking;
 
   const handleChange = (text: string, index: number) => {
     if (text.length > 1) {
@@ -98,9 +100,9 @@ const VerifyDeliveryOTPScreen: React.FC<Props> = ({ navigation }) => {
 
   const isComplete = otp.every(d => d !== '');
   
-  // useEffect(() => {
-  //   dispatch(resetVerifyOtpState());
-  // }, []);
+  useEffect(() => {
+    dispatch(resetVerifyOtpState());
+  }, []);
 
   const handleVerify = () => {
     if (!isComplete) return;

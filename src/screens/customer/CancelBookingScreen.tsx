@@ -9,6 +9,8 @@ import {
   Alert,
   ActivityIndicator,
   Image,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { Text } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -83,6 +85,9 @@ const CancelBookingScreen: React.FC<CancelBookingScreenProps> = ({ navigation, r
         <Text style={styles.headerTitle}>Cancel Booking</Text>
       </View>
 
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
@@ -155,6 +160,7 @@ const CancelBookingScreen: React.FC<CancelBookingScreenProps> = ({ navigation, r
           <Text style={styles.keepBtnText}>Keep My Booking</Text>
         </TouchableOpacity>
       </View>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 };
